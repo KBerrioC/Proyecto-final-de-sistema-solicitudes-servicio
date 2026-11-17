@@ -4,40 +4,62 @@
 **Autor:** Berrio (GitHub: KBerrioC)
 **Entrevistado:** docente de la asignatura, en el rol de representante de la organización
 **Medio:** chat de Teams, en tres rondas de preguntas (se enviaron por bloques para dejar registro)
-**Fechas:** _por completar (ronda 1: __/__; ronda 2 y 3: __/__)_
-**Evidencia:** capturas del chat en `evidencias/entrevista/`
+**Fechas:** ronda 1: 12/11; ronda 2 y 3: 14/11
+**Evidencia:** texto literal de las respuestas del docente, copiado del chat de Teams
 
 Convención: cada intercambio tiene un identificador `E-XX`. Los requisitos de [requisitos.md](requisitos.md) citan estos identificadores como origen.
 
 ## 1. Preguntas y respuestas
 
-### Ronda 1 – Contexto y proceso
+Bueno profe si no le molesta quisiera seguir con la entrevista y pido disculpas por la hora igual soy consciente en que me responderá en el horario que pueda.
+Estoy desarrollando el Proyecto Final 01 (gestión de solicitudes de servicio) yo solo . Para la entrevista de requisitos le estas son parte de mis preguntas 
+ 
 
-| ID | Pregunta | Respuesta del docente (resumen) | Acuerdo o decisión |
-|---|---|---|---|
-| E-01 | ¿Qué tipo de organización y de servicios debo asumir? | Institución educativa que ofrece servicios administrativos: expedición de certificados, actualización de información, solicitud de documentos y trámites generales. | Se modela una institución educativa con un catálogo de servicios administrativos. |
-| E-02 | ¿Qué datos mínimos debe tener una solicitud? | Debe identificar al solicitante, el servicio requerido, el asunto y una descripción. Debe permitir adjuntar documentos cuando el trámite lo requiera. Los demás campos los define el equipo. | Adjuntos incluidos en el alcance. Campos adicionales definidos en el diseño. |
-| E-03 | Estados propuestos: Recibida → En evaluación → En gestión → Finalizada. ¿Hay otros? ¿Reapertura? | Los estados propuestos son un buen punto de partida. Se debe analizar si hacen falta estados para solicitudes rechazadas, canceladas o pendientes de información. La reapertura es posible si se definen las condiciones. | El estudiante define los estados finales y decide sobre la reapertura (ver SUP-02). |
-| E-04 | ¿Qué significa «evaluar» una solicitud? | Comprobar que la información esté completa y que el trámite corresponda a los servicios de la organización. Resultados posibles: aceptar, solicitar información adicional o rechazar indicando el motivo. Al aceptarse, se asigna al responsable. | Evaluar tiene tres resultados. Rechazar y pedir información exigen motivo. |
-| E-05 | ¿Roles y login? | Los tres roles propuestos (solicitante, personal de atención, coordinación) son adecuados. Se requiere autenticación porque se maneja información de los solicitantes. El equipo define la implementación y los permisos. | Autenticación obligatoria para los tres roles. |
-| E-06 | ¿El solicitante usa cuenta o código de radicado? | Debe poder registrar y consultar sus solicitudes. Se puede usar cuenta o código, siempre que la información no quede expuesta a personas no autorizadas. Los requisitos, reglas de negocio y decisiones técnicas corresponden al estudiante. | Se elige cuenta (ver SUP-01). |
 
-### Ronda 2 – Permisos, consolidado y avance
+1. ¿Qué tipo de organización y de servicios debo asumir (por ejemplo, universidad, alcaldía o empresa)?
 
-| ID | Pregunta | Respuesta del docente (resumen) | Acuerdo o decisión |
-|---|---|---|---|
-| E-07 | Al aceptar una solicitud, ¿quién la asigna? Propuesta: atención asigna y coordinación solo consulta. | El personal de atención puede asignar, pero coordinación también debe poder intervenir y reasignar solicitudes cuando sea necesario. | Atención y coordinación asignan y reasignan. Coordinación no es solo de consulta. |
-| E-08 | Resumen de coordinación: conteo por estado, servicio y responsable. ¿Algo más? | Está bien incluir esos conteos. También es útil conocer los tiempos de atención y las solicitudes que llevan más tiempo pendientes. | El resumen incluye cinco medidas (ver RF-18). |
-| E-09 | ¿Puedo avanzar con el repositorio y la implementación mientras revisa la especificación? | Puede avanzar con la organización del repositorio y el diseño inicial (el mensaje llegó cortado). | Se avanza con repositorio y diseño. Ver también E-13. |
+2. ¿Qué datos mínimos debe tener una solicitud (asunto, descripción, categoría, prioridad, otros)?
 
-### Ronda 3 – Prioridad, trazabilidad, CRUD y entrega
+3. Como punto de partida propongo los estados: Recibida → En evaluación → En gestión → Finalizada. ¿Le parece bien, o debe haber otros como Rechazada o Cancelada? ¿Puede reabrirse una solicitud finalizada?
 
-| ID | Pregunta | Respuesta del docente (resumen) | Acuerdo o decisión |
-|---|---|---|---|
-| E-10 | ¿Plazos máximos o prioridad, o basta con registrar fechas? | No todos los trámites tienen la misma urgencia. La organización necesita identificar cuáles requieren atención prioritaria y cuánto tiempo llevan pendientes. El estudiante propone cómo manejarlo. | Se define prioridad de tres niveles y cálculo de tiempo pendiente (ver RN-09 y RN-10). |
-| E-11 | Trazabilidad: el solicitante ve historial de estados y respuesta; las notas internas solo atención y coordinación. | Está bien. El solicitante debe conocer el avance de su trámite y la respuesta recibida; atención y coordinación pueden necesitar información adicional para gestionar el caso. | Se separan eventos visibles al solicitante y notas internas (ver RN-05 y RF-15). |
-| E-12 | ¿Basta con implementar las operaciones CRUD que el proceso requiera? | Sí. No es obligatorio desarrollar las cuatro operaciones CRUD por cada entidad, pero hay que demostrar el uso de los servicios web y las operaciones HTTP correspondientes. | Cada endpoint se justifica por el proceso. No se implementa DELETE (ver RNF-09). |
-| E-13 | ¿Cómo prefiere recibir `requisitos.md` para aprobarlo? | Puede continuar de forma autónoma. La revisión de los requisitos se hará junto con los demás entregables al finalizar el proyecto. | No hay aprobación previa. La revisión es al final. |
+4. ¿Qué significa "evaluar" una solicitud: aceptarla, rechazarla, clasificarla o asignarla?
+
+5. Propongo tres roles: solicitante, personal de atención y coordinación. ¿Debe haber login con usuario y contraseña, o basta con identificar el rol?
+
+6. ¿El solicitante necesita una cuenta o puede consultar su solicitud con un código?
+ 
+Quedo atento a sus respuestas para continuar con la entrevista . Gracias profe.
+ 
+Buenas tardes.
+No hay problema, 
+Puedes asumir que se trata de una institución educativa que ofrece servicios administrativos, como expedición de certificados, actualización de información, solicitudes de documentos y atención de trámites generales.
+Como mínimo, la solicitud debe identificar al solicitante, el servicio requerido, el asunto y una descripción de lo que necesita. También debe permitir adjuntar documentos cuando el trámite lo requiera. Los demás campos deben definirlos ustedes según las necesidades del proceso.
+Los estados que propones son un buen punto de partida. Debes analizar si necesitas estados adicionales para solicitudes rechazadas, canceladas o pendientes de información. También puedes contemplar la reapertura, siempre que definas las condiciones para permitirla.
+Evaluar una solicitud significa comprobar que la información esté completa y que el trámite corresponda a los servicios de la organización. Según el resultado, puede aceptarse, solicitar información adicional o rechazarse indicando el motivo. Una vez aceptada, se asigna al responsable de atenderla.
+Los tres roles que propones son adecuados. Como se maneja información de los solicitantes y existen diferentes responsabilidades, se requiere autenticación. Ustedes deben definir cómo implementarla y qué permisos tendrá cada rol.
+El solicitante debe poder registrar y consultar sus solicitudes. Puedes proponer el uso de una cuenta o un mecanismo de consulta mediante código de radicado, siempre que garantices que la información no quede expuesta a personas no autorizadas.
+Recuerda que las respuestas permiten delimitar las necesidades de la organización, pero corresponde a ustedes definir los requisitos, las reglas de negocio y las decisiones técnicas que consideren necesarias para desarrollar la solución.
+ 
+listo profe muchas gracias, sigo con la entrevista.
+ 
+1. Al aceptar una solicitud, ¿quién la asigna? Propongo que lo haga el mismo personal de atención que la evalúa, a sí mismo o a otro funcionario, y que coordinación solo consulte. ¿Le parece bien?
+2. Para el resumen de coordinación propongo el conteo de solicitudes por estado, por servicio y por responsable. ¿Debe incluir algo más, como tiempos de atención? 
+3. ¿Puedo avanzar con el repositorio y la implementación mientras revisa la especificación, o debo esperar su aprobación? Quedo atento. Gracias.
+ 
+4. ¿Debo manejar plazos máximos de respuesta o niveles de prioridad, o basta con registrar las fechas de cada acción? 
+5. Sobre la trazabilidad, propongo que el solicitante vea el historial de cambios de estado y la respuesta, y que las notas internas queden visibles solo para atención y coordinación. ¿Le parece bien? 
+6. La guía indica que las operaciones CRUD solo se implementan cuando el proceso las justifica, y la presentación menciona "operaciones CRUD". ¿Confirma que basta con implementar las que el proceso requiera, y no un CRUD completo de cada entidad? 
+7. ¿Cómo prefiere recibir `docs/requisitos.md` para aprobarlo: el enlace al archivo en GitHub o un documento por este chat? ¿Y cómo dejará constancia de la aprobación? Muchas gracias.
+ 
+Buenas tardes Kevin 
+El personal de atención puede realizar la asignación, pero coordinación también debe tener la posibilidad de intervenir y reasignar solicitudes cuando sea necesario.
+Está bien incluir los conteos por estado, servicio y responsable. También sería útil conocer los tiempos de atención y las solicitudes que llevan más tiempo pendientes.
+Puedes avanzar con la organización del repositorio y el diseño inicia
+No todos los trámites tienen la misma urgencia. La organización necesita identificar cuáles requieren atención prioritaria y conocer cuánto tiempo llevan pendientes. Puedes proponer cómo manejarlo.
+Está bien. El solicitante debe conocer el avance de su trámite y la respuesta recibida, mientras que el personal de atención y coordinación pueden necesitar información adicional para gestionar el caso.
+Sí, deben implementar las operaciones que realmente necesita el proceso. No es obligatorio desarrollar las cuatro operaciones CRUD para cada entidad, pero sí demostrar el uso de los servicios web y las operaciones HTTP correspondientes.
+Puede continuar de forma autónoma la revisión de los requisitos se realizará junto con los demás entregables al finalizar el proyecto.
+ 
 
 ## 2. Decisiones del estudiante que el docente no objetó
 
