@@ -221,3 +221,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Base de datos local y adjuntos subidos
+*.db
+*.sqlite3
+uploads/
