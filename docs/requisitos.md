@@ -135,7 +135,7 @@ Los estados Finalizada, Rechazada y Cancelada son finales. No hay otras transici
 
 ## 9. Supuestos no confirmados
 
-El docente los conoce desde la entrevista pero no los aprobó ni objetó expresamente. Se revisarán al final del proyecto.
+No se consultaron con el docente durante la entrevista. Son decisiones del estudiante dentro de lo que el docente dejó a su criterio (E-03, E-06, E-10 y E-13) y se revisarán al final del proyecto.
 
 | ID | Supuesto |
 |---|---|
