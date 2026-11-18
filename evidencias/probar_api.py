@@ -343,6 +343,214 @@ try:
         r = c.get(f"/api/adjuntos/{id_adjunto}")
         probar("T-46", "RNF-05", "Descargar sin token", r, 401)
 
+        # --- Gestión de solicitudes (EP-09 a EP-15)
+        with SessionLocal() as db:
+            maria = db.query(Usuario).filter_by(correo="maria.rios@ejemplo.edu").one()
+            coord = db.query(Usuario).filter_by(correo="coordinacion@ejemplo.edu").one()
+            id_maria, id_coord = maria.id, coord.id
+        auth_luis, auth_maria = encabezado(token_luis), encabezado(token_maria)
+        auth_coord, auth_carlos = encabezado(token_coord), encabezado(token_carlos)
+
+        def nueva(asunto="Solicitud de prueba de gestión", cabecera=auth_ana):
+            return c.post("/api/solicitudes", data={**base, "asunto": asunto}, headers=cabecera).json()["id"]
+
+        def eventos(id_, cabecera):
+            return c.get(f"/api/solicitudes/{id_}/eventos", headers=cabecera).json()
+
+        def tipos(id_, cabecera):
+            return [e["tipo"] for e in eventos(id_, cabecera)]
+
+        def estado(id_):
+            with SessionLocal() as db:
+                return db.get(Solicitud, id_).estado
+
+        # Flujo completo de la solicitud principal: recibida -> evaluación -> información -> gestión -> finalizada
+        s1 = nueva("Certificado para trámite de beca")
+        r = c.patch(f"/api/solicitudes/{s1}/estado", json={"estado": "en_evaluacion"}, headers=auth_luis)
+        probar("T-47", "RF-10, CA-02", "El personal inicia la evaluación (recibida -> en evaluación)", r, 200,
+               r.json().get("estado") == "en_evaluacion"
+               and tipos(s1, auth_luis) == ["creada", "evaluacion_iniciada"])
+
+        r = c.patch(f"/api/solicitudes/{s1}/estado", json={"estado": "en_evaluacion"}, headers=auth_ana)
+        probar("T-48", "RF-03, RF-10", "El solicitante intenta evaluar su solicitud (no autorizado)", r, 403,
+               estado(s1) == "en_evaluacion")
+
+        r = c.patch(f"/api/solicitudes/{s1}/estado", json={"estado": "finalizada"}, headers=auth_luis)
+        probar("T-49", "RN-01", "Pedir «finalizada» por EP-09 (tiene su propio endpoint)", r, 422)
+
+        s2 = nueva("Solicitud para probar transiciones")
+        r = c.patch(f"/api/solicitudes/{s2}/estado",
+                    json={"estado": "en_gestion", "responsable_id": id_maria}, headers=auth_luis)
+        probar("T-50", "RN-01", "Saltar de «recibida» a «en gestión» (transición no permitida)", r, 409,
+               estado(s2) == "recibida")
+
+        r = c.patch(f"/api/solicitudes/{s1}/estado", json={"estado": "pendiente_informacion"}, headers=auth_luis)
+        probar("T-51", "RN-02", "Pedir información sin indicar el motivo", r, 400, estado(s1) == "en_evaluacion")
+
+        r = c.patch(f"/api/solicitudes/{s1}/estado",
+                    json={"estado": "pendiente_informacion", "motivo": "Adjunte la constancia de matrícula."},
+                    headers=auth_luis)
+        vistos = eventos(s1, auth_ana)
+        probar("T-52", "RF-11, RF-17", "Pedir información (el solicitante ve el motivo en su historial)", r, 200,
+               r.json().get("estado") == "pendiente_informacion"
+               and vistos[-1]["tipo"] == "informacion_solicitada"
+               and vistos[-1]["detalle"] == "Adjunte la constancia de matrícula.")
+
+        r = c.post(f"/api/solicitudes/{s1}/informacion", headers=auth_carlos, data={"texto": "Ya la adjunto."})
+        probar("T-53", "RF-11", "Otro solicitante intenta responder la petición (404)", r, 404)
+
+        r = c.post(f"/api/solicitudes/{s1}/informacion", headers=auth_ana)
+        probar("T-54", "RF-11", "Responder la petición sin texto ni archivo", r, 422, estado(s1) == "pendiente_informacion")
+
+        r = c.post(f"/api/solicitudes/{s1}/informacion", headers=auth_ana, data={"texto": "Adjunto la constancia."},
+                   files=[("archivos", ("constancia.pdf", PDF, "application/pdf"))])
+        cuerpo = r.json() if r.status_code == 200 else {}
+        probar("T-55", "RF-11, CA-02", "El solicitante entrega la información (vuelve a evaluación)", r, 200,
+               cuerpo.get("estado") == "en_evaluacion"
+               and [a["proposito"] for a in cuerpo.get("adjuntos", [])] == ["informacion"]
+               and tipos(s1, auth_luis)[-1] == "informacion_recibida")
+
+        r = c.post(f"/api/solicitudes/{s1}/informacion", headers=auth_ana, data={"texto": "Otra vez."})
+        probar("T-56", "RN-01", "Entregar información cuando ya no se espera (409)", r, 409)
+
+        r = c.patch(f"/api/solicitudes/{s1}/estado", json={"estado": "en_gestion"}, headers=auth_luis)
+        probar("T-57", "RN-03", "Aceptar sin indicar responsable", r, 400, estado(s1) == "en_evaluacion")
+
+        r = c.patch(f"/api/solicitudes/{s1}/estado",
+                    json={"estado": "en_gestion", "responsable_id": id_coord}, headers=auth_luis)
+        probar("T-58", "RN-07", "Asignar como responsable a alguien que no es de atención", r, 400,
+               estado(s1) == "en_evaluacion")
+
+        r = c.patch(f"/api/solicitudes/{s1}/estado",
+                    json={"estado": "en_gestion", "responsable_id": id_maria, "prioridad": "alta"},
+                    headers=auth_luis)
+        cuerpo = r.json() if r.status_code == 200 else {}
+        probar("T-59", "RF-12, RN-03, RN-08, RN-09", "Aceptar y asignar (queda en gestión con responsable y prioridad)", r, 200,
+               cuerpo.get("estado") == "en_gestion" and cuerpo.get("responsable", {}).get("nombre") == "María Ríos"
+               and cuerpo.get("prioridad") == "alta"
+               and tipos(s1, auth_maria)[-3:] == ["aceptada", "asignada", "prioridad_cambiada"])
+
+        interno = {"asignada", "prioridad_cambiada"}
+        vistos_ana = tipos(s1, auth_ana)
+        r = c.get(f"/api/solicitudes/{s1}/eventos", headers=auth_ana)
+        probar("T-60", "RN-05", "El solicitante ve la aceptación pero no la asignación ni el cambio de prioridad", r, 200,
+               "aceptada" in vistos_ana and not interno & set(vistos_ana))
+
+        r = c.post(f"/api/solicitudes/{s1}/finalizacion", data={"respuesta": "Su certificado fue emitido."}, headers=auth_luis)
+        probar("T-61", "SUP-10", "Otro funcionario no ve la solicitud en gestión (404)", r, 404)
+
+        r = c.post(f"/api/solicitudes/{s1}/finalizacion", data={"respuesta": "Corta"}, headers=auth_maria)
+        probar("T-62", "RN-04", "Finalizar con una respuesta demasiado corta", r, 422, estado(s1) == "en_gestion")
+
+        r = c.post(f"/api/solicitudes/{s1}/finalizacion", data={"respuesta": "Su certificado fue emitido."},
+                   headers=auth_maria, files=[("archivo", ("programa.exe", b"MZ" + b"0" * 50, "application/octet-stream"))])
+        probar("T-63", "RNF-05", "Finalizar con un adjunto no permitido (no cambia nada)", r, 415,
+               estado(s1) == "en_gestion" and tipos(s1, auth_maria)[-1] == "prioridad_cambiada")
+
+        r = c.post(f"/api/solicitudes/{s1}/finalizacion",
+                   data={"respuesta": "Su certificado de estudios fue emitido y está adjunto."},
+                   headers=auth_maria, files=[("archivo", ("certificado-emitido.pdf", PDF, "application/pdf"))])
+        cuerpo = r.json() if r.status_code == 200 else {}
+        probar("T-64", "RF-14, RN-04, CA-05", "El responsable finaliza con respuesta y archivo", r, 200,
+               cuerpo.get("estado") == "finalizada" and bool(cuerpo.get("respuesta"))
+               and cuerpo.get("finalizado_en") is not None and cuerpo.get("dias_pendientes") is None
+               and cuerpo.get("dias_atencion") == 0
+               and [a["proposito"] for a in cuerpo.get("adjuntos", [])] == ["informacion", "respuesta"]
+               and tipos(s1, auth_ana)[-1] == "finalizada")
+        id_respuesta = [a["id"] for a in cuerpo.get("adjuntos", []) if a["proposito"] == "respuesta"][0]
+
+        r = c.get(f"/api/adjuntos/{id_respuesta}", headers=auth_ana)
+        probar("T-65", "CA-05, RNF-05", "El solicitante descarga el archivo de respuesta", r, 200,
+               r.content == PDF and "certificado-emitido.pdf" in r.headers.get("content-disposition", ""))
+
+        r = c.post(f"/api/solicitudes/{s1}/notas", json={"texto": "Nota tardía"}, headers=auth_coord)
+        r2 = c.patch(f"/api/solicitudes/{s1}/prioridad", json={"prioridad": "baja", "motivo": "Ya no aplica"}, headers=auth_coord)
+        r3 = c.post(f"/api/solicitudes/{s1}/cancelacion", headers=auth_ana)
+        probar("T-66", "RN-12", "Una solicitud finalizada ya no admite notas, prioridad ni cancelación", r, 409,
+               r2.status_code == 409 and r3.status_code == 409 and estado(s1) == "finalizada")
+
+        # Reasignación (EP-11)
+        s3 = nueva("Solicitud para reasignar")
+        c.patch(f"/api/solicitudes/{s3}/estado", json={"estado": "en_evaluacion"}, headers=auth_luis)
+        c.patch(f"/api/solicitudes/{s3}/estado", json={"estado": "en_gestion", "responsable_id": id_maria}, headers=auth_luis)
+        r = c.patch(f"/api/solicitudes/{s3}/responsable", json={"responsable_id": luis.id, "motivo": "Carga de trabajo"},
+                    headers=auth_coord)
+        ultimo = eventos(s3, auth_coord)[-1]
+        with SessionLocal() as db:
+            ev = db.query(Evento).filter_by(solicitud_id=s3, tipo="reasignada").one()
+            de_a = (ev.de_responsable_id, ev.a_responsable_id)
+        probar("T-67", "RF-13, RN-08", "Coordinación reasigna y queda registrado de quién a quién", r, 200,
+               r.json().get("responsable", {}).get("nombre") == "Luis Gómez" and de_a == (id_maria, luis.id)
+               and ultimo["tipo"] == "reasignada")
+
+        r = c.patch(f"/api/solicitudes/{s3}/responsable", json={"responsable_id": luis.id}, headers=auth_coord)
+        probar("T-68", "RN-07", "Reasignar a quien ya es el responsable", r, 400)
+
+        r = c.patch(f"/api/solicitudes/{s3}/responsable", json={"responsable_id": ana.id}, headers=auth_coord)
+        probar("T-69", "RN-07", "Reasignar a alguien que no es de atención", r, 400)
+
+        r = c.patch(f"/api/solicitudes/{s3}/responsable", json={"responsable_id": id_maria}, headers=auth_maria)
+        probar("T-70", "SUP-10", "El responsable anterior ya no ve ni reasigna la solicitud (404)", r, 404)
+
+        # Prioridad y notas (EP-12 y EP-13)
+        s4 = nueva("Solicitud para prioridad y notas")
+        c.patch(f"/api/solicitudes/{s4}/estado", json={"estado": "en_evaluacion"}, headers=auth_luis)
+        r = c.patch(f"/api/solicitudes/{s4}/prioridad", json={"prioridad": "alta", "motivo": "Vence el plazo"}, headers=auth_luis)
+        probar("T-71", "RN-09, SUP-10", "Atención no ajusta la prioridad de una solicitud que no tiene asignada", r, 403)
+
+        r = c.patch(f"/api/solicitudes/{s4}/prioridad", json={"prioridad": "alta"}, headers=auth_coord)
+        probar("T-72", "RN-09", "Ajustar la prioridad sin motivo", r, 422)
+
+        r = c.patch(f"/api/solicitudes/{s4}/prioridad", json={"prioridad": "alta", "motivo": "Vence el plazo"}, headers=auth_coord)
+        probar("T-73", "RF-12, RN-09", "Coordinación ajusta la prioridad con motivo", r, 200,
+               r.json().get("prioridad") == "alta" and "Vence el plazo" in eventos(s4, auth_coord)[-1]["detalle"])
+
+        c.patch(f"/api/solicitudes/{s4}/estado", json={"estado": "en_gestion", "responsable_id": id_maria}, headers=auth_luis)
+        r = c.post(f"/api/solicitudes/{s4}/notas", json={"texto": "Llamar al solicitante"}, headers=auth_maria)
+        interna = r.json() if r.status_code == 201 else {}
+        r2 = c.post(f"/api/solicitudes/{s4}/notas", json={"texto": "Estamos revisando su caso", "visible_solicitante": True},
+                    headers=auth_maria)
+        detalles_ana = [e["detalle"] for e in eventos(s4, auth_ana)]
+        probar("T-74", "RN-05, RF-17", "Notas: la interna no la ve el solicitante, la marcada como visible sí", r, 201,
+               interna.get("visible_solicitante") is False and r2.status_code == 201
+               and "Estamos revisando su caso" in detalles_ana and "Llamar al solicitante" not in detalles_ana)
+
+        r = c.post(f"/api/solicitudes/{s4}/notas", json={"texto": "x"}, headers=auth_maria)
+        probar("T-75", "RF-12", "Nota demasiado corta", r, 422)
+
+        # Rechazo, cancelación y coordinación
+        s5 = nueva("Solicitud para rechazar")
+        c.patch(f"/api/solicitudes/{s5}/estado", json={"estado": "en_evaluacion"}, headers=auth_maria)
+        r = c.patch(f"/api/solicitudes/{s5}/estado", json={"estado": "rechazada"}, headers=auth_maria)
+        probar("T-76", "RN-02", "Rechazar sin indicar el motivo", r, 400, estado(s5) == "en_evaluacion")
+
+        r = c.patch(f"/api/solicitudes/{s5}/estado",
+                    json={"estado": "rechazada", "motivo": "No corresponde a este servicio."}, headers=auth_maria)
+        probar("T-77", "RF-10, RN-12", "Rechazar con motivo (estado final)", r, 200,
+               r.json().get("estado") == "rechazada" and r.json().get("dias_pendientes") is None)
+
+        r = c.patch(f"/api/solicitudes/{s5}/estado", json={"estado": "en_evaluacion"}, headers=auth_coord)
+        probar("T-78", "RN-12", "Una solicitud rechazada no puede volver a evaluarse", r, 409)
+
+        s6 = nueva("Solicitud para cancelar")
+        r = c.post(f"/api/solicitudes/{s6}/cancelacion", headers=auth_carlos)
+        probar("T-79", "RF-15, RNF-02", "Otro solicitante intenta cancelar una solicitud ajena (404)", r, 404,
+               estado(s6) == "recibida")
+
+        r = c.post(f"/api/solicitudes/{s6}/cancelacion", json={"motivo": "Ya no la necesito"}, headers=auth_ana)
+        probar("T-80", "RF-15, RN-11", "El solicitante cancela antes de la gestión", r, 200,
+               r.json().get("estado") == "cancelada" and tipos(s6, auth_ana)[-1] == "cancelada")
+
+        r = c.post(f"/api/solicitudes/{s4}/cancelacion", headers=auth_ana)
+        probar("T-81", "RN-11", "Cancelar una solicitud que ya está en gestión (409)", r, 409, estado(s4) == "en_gestion")
+
+        r = c.post(f"/api/solicitudes/{s4}/finalizacion", data={"respuesta": "Resuelto por coordinación."}, headers=auth_coord)
+        probar("T-82", "RF-13, RN-04", "Coordinación puede finalizar una solicitud que no tiene asignada", r, 200,
+               r.json().get("estado") == "finalizada")
+
+        r = c.patch(f"/api/solicitudes/{s2}/estado", json={"estado": "en_evaluacion"})
+        probar("T-83", "RF-03", "Gestionar sin token", r, 401)
+
 finally:
     engine.dispose()
     if os.path.exists("pruebas.db"):
