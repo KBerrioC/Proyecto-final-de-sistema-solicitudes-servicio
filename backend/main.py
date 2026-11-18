@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from . import models  # noqa: F401  (registra las tablas en Base.metadata)
 from .config import configuracion
 from .database import Base, engine, get_db
-from .routers import auth, servicios, usuarios
+from .routers import auth, servicios, solicitudes, usuarios
 
 
 @asynccontextmanager
@@ -22,12 +22,13 @@ async def ciclo_de_vida(_app: FastAPI):
 app = FastAPI(
     title="Sistema de gestión de solicitudes de servicio",
     description="API REST del Proyecto Final 01 (PF-01) de Aplicaciones y Servicios Web.",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=ciclo_de_vida,
 )
 
 app.include_router(auth.router)
 app.include_router(servicios.router)
+app.include_router(solicitudes.router)
 app.include_router(usuarios.router)
 
 
