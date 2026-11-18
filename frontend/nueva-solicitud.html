@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nueva solicitud · Solicitudes de servicio</title>
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <main>
+    <h1>Nueva solicitud</h1>
+    <div class="tarjeta">
+      <div id="mensaje" class="msg" role="alert"></div>
+      <form id="form-nueva">
+        <label for="servicio">Servicio</label>
+        <select id="servicio" required></select>
+        <p class="ayuda" id="ayuda-servicio"></p>
+        <label for="asunto">Asunto (5 a 150 caracteres)</label>
+        <input id="asunto" type="text" required minlength="5" maxlength="150">
+        <label for="descripcion">Descripción (10 a 2000 caracteres)</label>
+        <textarea id="descripcion" required minlength="10" maxlength="2000"></textarea>
+        <label for="archivos">Documentos adjuntos</label>
+        <input id="archivos" type="file" multiple accept=".pdf,.jpg,.jpeg,.png">
+        <p class="ayuda">PDF, JPG o PNG. Hasta 5 archivos de 5 MB cada uno.</p>
+        <button class="btn" type="submit" id="enviar">Enviar solicitud</button>
+      </form>
+    </div>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/nueva-solicitud.js"></script>
+</body>
+</html>

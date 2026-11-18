@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resumen del proceso · Solicitudes de servicio</title>
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <main>
+    <h1>Resumen del proceso</h1>
+    <div id="mensaje" class="msg" role="alert"></div>
+    <div class="filtros">
+      <div><label for="desde">Desde</label><input id="desde" type="date"></div>
+      <div><label for="hasta">Hasta</label><input id="hasta" type="date"></div>
+      <div><button class="btn" id="aplicar" type="button" style="margin-top:0">Aplicar</button></div>
+    </div>
+    <div id="contenido"></div>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/resumen.js"></script>
+</body>
+</html>

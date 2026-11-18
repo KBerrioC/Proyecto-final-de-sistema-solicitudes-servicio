@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -22,7 +23,7 @@ async def ciclo_de_vida(_app: FastAPI):
 app = FastAPI(
     title="Sistema de gestión de solicitudes de servicio",
     description="API REST del Proyecto Final 01 (PF-01) de Aplicaciones y Servicios Web.",
-    version="0.6.0",
+    version="0.7.0",
     lifespan=ciclo_de_vida,
 )
 
@@ -40,3 +41,9 @@ def salud(db: Session = Depends(get_db)):
     """Comprueba que el servidor responde y que la base de datos es accesible."""
     db.execute(text("SELECT 1"))
     return {"estado": "ok", "base_de_datos": "ok"}
+
+
+# El frontend se sirve al final para que no tape las rutas de la API ni /docs.
+_frontend = Path(__file__).resolve().parent.parent / "frontend"
+if _frontend.is_dir():
+    app.mount("/", StaticFiles(directory=_frontend, html=True), name="frontend")
