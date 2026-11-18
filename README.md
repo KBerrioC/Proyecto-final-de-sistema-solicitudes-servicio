@@ -1,335 +1,226 @@
-# Laboratorio_01
-Análisis del funcionamiento de una aplicación web
+# Sistema de gestión de solicitudes de servicio
 
-# Laboratorio 01 --- Análisis del funcionamiento de una aplicación web
+Proyecto Final 01 (PF-01) de Aplicaciones y Servicios Web. Aplicación web con interfaz, API REST y base de datos para registrar y dar seguimiento a solicitudes de servicio de una institución educativa.
 
-> **Curso:** Aplicaciones y Servicios Web\
-> **Modalidad:** Práctica de laboratorio\
-> **Entrega:** Repositorio GitHub --- archivo `README.md`\
-> **Evidencias:** Carpeta `evidencias/`
+## Contenido
 
-------------------------------------------------------------------------
+1. [Información general](#1-información-general)
+2. [Descripción del sistema](#2-descripción-del-sistema)
+3. [Requisitos y alcance](#3-requisitos-y-alcance)
+4. [Arquitectura, diseño de API y modelo de datos](#4-arquitectura-diseño-de-api-y-modelo-de-datos)
+5. [Configuración del entorno](#5-configuración-del-entorno)
+6. [Servicios web implementados](#6-servicios-web-implementados)
+7. [Pruebas de API e integración y evidencias de funcionamiento](#7-pruebas-de-api-e-integración-y-evidencias-de-funcionamiento)
+8. [Control de versiones](#8-control-de-versiones)
+9. [Conclusiones y limitaciones](#9-conclusiones-y-limitaciones)
 
-## Objetivo de la práctica
+## 1. Información general
 
-Analizar el funcionamiento de una aplicación web real mediante las
-herramientas de desarrollo del navegador, identificando los recursos
-cargados, las solicitudes y respuestas HTTP, la estructura DOM y las
-interacciones entre cliente y servidor.
+- **Proyecto:** sistema de gestión de solicitudes de servicio.
+- **Asignatura:** Aplicaciones y Servicios Web, programa de Tecnología en Desarrollo de Software.
+- **Integrante y contribución:** Berrio (GitHub: [KBerrioC](https://github.com/KBerrioC)). Proyecto individual: análisis de requisitos, diseño, backend, frontend, pruebas y documentación.
+- **Fecha:** 18 de noviembre de 2026.
+- **Repositorio:** https://github.com/KBerrioC/Proyecto-final-de-sistema-solicitudes-servicio
 
-## Resultado esperado
+## 2. Descripción del sistema
 
-Al finalizar la práctica, el estudiante deberá poder reconstruir y
-documentar el flujo observado entre:
+**Problema.** Una institución educativa recibe solicitudes de servicios administrativos (certificados, actualización de información, documentos y trámites generales) por correo, llamadas y mensajes, sin trazabilidad. Los solicitantes no saben el estado de su trámite y el personal no tiene una vista consolidada.
 
-``` mermaid
-flowchart LR
-    U[Usuario] --> N[Navegador]
-    N --> H[HTTP]
-    H --> S[Servidor]
-    S --> R[Respuesta]
-    R --> N
-    N --> D[DOM]
-    D --> I[Interfaz]
-    I --> U
+**Actores.**
+- Solicitante: presenta solicitudes y consulta su estado y respuesta.
+- Personal de atención: evalúa, gestiona y finaliza solicitudes.
+- Coordinación: supervisa el proceso, reasigna y consulta el resumen consolidado.
+
+**Resumen de la solución.** Una aplicación web donde el solicitante registra una solicitud (con adjuntos cuando el servicio lo requiere), el personal la evalúa, la asigna y la gestiona hasta responderla, y coordinación consulta el estado general. Cada acción queda registrada en un historial.
+
+**Fuera de alcance.** Facturación, pagos, WhatsApp, envío real de correos, integración con plataformas externas y reapertura de solicitudes finalizadas.
+
+Detalle completo: [docs/requisitos.md](docs/requisitos.md).
+
+## 3. Requisitos y alcance
+
+- **Método de levantamiento:** entrevista con el docente en el rol de representante de la organización, por el chat de Teams, en tres rondas.
+- **Evidencia y decisiones confirmadas:** [docs/entrevista.md](docs/entrevista.md).
+- **Requisitos, reglas de negocio, historias de usuario y criterios de aceptación:** [docs/requisitos.md](docs/requisitos.md) (19 requisitos funcionales, 10 no funcionales, 12 reglas de negocio y 10 historias de usuario).
+- **Supuestos no confirmados con el docente:** sección 9 de [docs/requisitos.md](docs/requisitos.md).
+
+## 4. Arquitectura, diseño de API y modelo de datos
+
+La aplicación es cliente-servidor y se ejecuta en un solo proceso: FastAPI expone la API REST y entrega los archivos estáticos del frontend. Los datos se guardan en SQLite y los adjuntos, en la carpeta `uploads/`.
+
+| Capa | Tecnología | Razón |
+|---|---|---|
+| Frontend | HTML, CSS y JavaScript con `fetch` | No requiere compilación ni un segundo servidor; consume la API real |
+| Backend | Python y FastAPI | Validación con Pydantic y documentación OpenAPI automática |
+| Base de datos | SQLite con SQLAlchemy | Un solo archivo, sin instalación; claves foráneas activas |
+| Seguridad | JWT, bcrypt y roles | Contraseñas con hash y permisos validados en el servidor |
+
+- **Diseño completo** (decisiones, arquitectura, modelo de datos con sus cinco tablas, especificación de los 19 endpoints, reglas y control de acceso, interfaces y prototipos): [docs/diseno.md](docs/diseno.md).
+- **Estructura del código:** `backend/` (API, modelos, servicios y rutas), `frontend/` (seis pantallas), `evidencias/` (pruebas y capturas) y `docs/`.
+
+## 5. Configuración del entorno
+
+**Requisitos:** Python (desarrollado con 3.14 y probado también con 3.13) y Git.
+
+**Instalación y ejecución en Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/KBerrioC/Proyecto-final-de-sistema-solicitudes-servicio.git
+cd Proyecto-final-de-sistema-solicitudes-servicio
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+Copy-Item .env.example .env
 ```
 
-> El diagrama anterior representa los **componentes que serán
-> analizados**. El diagrama final de la práctica deberá ser construido
-> por el estudiante a partir de sus propias observaciones.
+En Linux o macOS: `python3 -m venv .venv`, `source .venv/bin/activate`, `pip install -r requirements-dev.txt` y `cp .env.example .env`.
 
-------------------------------------------------------------------------
+**Variables de entorno** (archivo `.env`, que no se sube al repositorio):
 
-# 1. Preparación del entorno
+| Variable | Descripción | Valor por defecto |
+|---|---|---|
+| `SECRET_KEY` | Clave para firmar los tokens. Obligatoria, de al menos 32 caracteres | `.env.example` trae un valor de relleno: cámbielo |
+| `DATABASE_URL` | Base de datos | `sqlite:///./app.db` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Duración de la sesión | `30` |
+| `UPLOAD_DIR` | Carpeta de adjuntos | `uploads` |
+| `MAX_UPLOAD_MB` | Tamaño máximo por archivo | `5` |
 
-1.  Ingrese a la aplicación web indicada por el docente.
-2.  Abra las **herramientas de desarrollo** del navegador.
-3.  Identifique las herramientas **Red / Network** y **Elementos /
-    Elements**.
-4.  Cree la siguiente estructura dentro del repositorio:
+Para generar una clave segura: `python -c "import secrets; print(secrets.token_urlsafe(48))"` y pegarla en `SECRET_KEY`.
 
-``` text
-laboratorio-01/
-├── README.md
-└── evidencias/
+**Datos de demostración y arranque:**
+
+```powershell
+python -m backend.seed
+uvicorn backend.main:app --reload
 ```
 
-El archivo `README.md` será el informe de la práctica. La carpeta
-`evidencias/` contendrá las capturas utilizadas para sustentar los
-resultados.
+La aplicación queda en http://127.0.0.1:8000/ y la documentación interactiva de la API en http://127.0.0.1:8000/docs. Las tablas se crean al iniciar.
 
-------------------------------------------------------------------------
+**Usuarios ficticios** (contraseña `Demo12345!`):
 
-# 2. Identificación de recursos de la aplicación
+| Rol | Correo | Nombre |
+|---|---|---|
+| Solicitante | ana.perez@ejemplo.edu | Ana Pérez |
+| Solicitante | carlos.ruiz@ejemplo.edu | Carlos Ruiz |
+| Personal de atención | luis.gomez@ejemplo.edu | Luis Gómez |
+| Personal de atención | maria.rios@ejemplo.edu | María Ríos |
+| Coordinación | coordinacion@ejemplo.edu | Coordinación Académica |
 
-Abra la herramienta **Red / Network** y recargue completamente la
-aplicación.
+El seed también crea cinco servicios: Actualización de información personal, Atención de trámites generales, Certificado de estudios, Corrección de calificaciones y Solicitud de copia de documentos.
 
-Observe las solicitudes generadas durante la carga e identifique como
-mínimo **cinco recursos**, procurando seleccionar tipos diferentes:
-documento HTML, CSS, JavaScript, imágenes, fuentes u otros.
+## 6. Servicios web implementados
 
-## Resultados
+La documentación interactiva con ejemplos y esquemas está en `/docs`. Solo se usan los métodos GET, POST y PATCH; no hay DELETE, porque las solicitudes se cancelan o finalizan, no se borran (RNF-09).
 
-Complete la tabla:
+| ID | Método | Ruta | Quién | Descripción | Requisitos |
+|---|---|---|---|---|---|
+| EP-01 | POST | `/api/auth/registro` | Público | Registra un solicitante | RF-01 |
+| EP-02 | POST | `/api/auth/login` | Público | Inicia sesión y devuelve el token | RF-02 |
+| EP-03 | GET | `/api/auth/perfil` | Cualquiera | Datos del usuario autenticado | RF-02, RF-03 |
+| EP-04 | GET | `/api/servicios` | Cualquiera | Catálogo de servicios activos | RF-04 |
+| EP-05 | GET | `/api/usuarios/atencion` | Atención, coordinación | Personal de atención para elegir responsable | RF-13 |
+| EP-06 | POST | `/api/solicitudes` | Solicitante | Crea una solicitud con adjuntos | RF-05, RF-06 |
+| EP-07 | GET | `/api/solicitudes` | Cualquiera | Lista lo que el usuario puede ver, con filtros y paginación | RF-07, RF-09, RF-19 |
+| EP-08 | GET | `/api/solicitudes/{id}` | Cualquiera | Detalle de una solicitud | RF-07, RF-19 |
+| EP-09 | PATCH | `/api/solicitudes/{id}/estado` | Atención, coordinación | Evalúa: iniciar, aceptar y asignar, pedir información o rechazar | RF-10, RF-11 |
+| EP-10 | POST | `/api/solicitudes/{id}/finalizacion` | Atención, coordinación | Finaliza con una respuesta y un archivo opcional | RF-16 |
+| EP-11 | PATCH | `/api/solicitudes/{id}/responsable` | Atención, coordinación | Reasigna el responsable | RF-13 |
+| EP-12 | PATCH | `/api/solicitudes/{id}/prioridad` | Atención, coordinación | Ajusta la prioridad con motivo | RF-14 |
+| EP-13 | POST | `/api/solicitudes/{id}/notas` | Atención, coordinación | Registra una nota en el historial | RF-15 |
+| EP-14 | POST | `/api/solicitudes/{id}/informacion` | Solicitante | Responde a una petición de información | RF-12 |
+| EP-15 | POST | `/api/solicitudes/{id}/cancelacion` | Solicitante | Cancela antes de que pase a gestión | RF-08 |
+| EP-16 | GET | `/api/solicitudes/{id}/eventos` | Cualquiera | Historial de trazabilidad | RF-17 |
+| EP-17 | GET | `/api/adjuntos/{id}` | Cualquiera autorizado | Descarga un archivo | RF-06, RNF-05 |
+| EP-18 | GET | `/api/resumen` | Coordinación | Resumen consolidado | RF-18 |
+| EP-19 | GET | `/api/salud` | Público | Estado del servidor y de la base de datos | RNF-07 |
 
-|  Recurso                   | Tipo           | Dominio     | Tamaño
-  ---------                   ------            ---------     --------
-| formatos-institucionales/ | HTML           | itm.edu.co  | 125 KB |
-| m-el_main_css             | CSS            | itm.edu.co  | 4.2 KB |
-| m-el_main                 | JavaScript     | itm.edu.co  | 93.2 KB |
-| icfes.jpg                 | Imagen (JPEG)  | itm.edu.co  | 16.7 KB |
-| fa-solid-900.woff2        | Fuente (WOFF2) | all.min.css | 78.6 KB                           
+**Ejemplo: crear una solicitud (EP-06).** Petición `POST /api/solicitudes` con `Authorization: Bearer <token>` y `multipart/form-data` con `servicio_id=3`, `asunto=Certificado para trámite de beca`, `descripcion=Necesito el certificado de estudios para renovar mi beca.` y `archivos=documento-prueba.pdf`. Respuesta 201:
 
-**Total de solicitudes observadas:** `_127_`
-
-## Evidencia
-
-``` markdown
-![Recursos cargados por la aplicación](evidencias/network.png)
+```json
+{
+  "id": 1, "radicado": "SOL-2026-00001",
+  "servicio": { "id": 3, "nombre": "Certificado de estudios" },
+  "asunto": "Certificado para trámite de beca",
+  "estado": "recibida", "prioridad": "media",
+  "solicitante": { "id": 4, "nombre": "Ana Pérez" }, "responsable": null,
+  "adjuntos": [ { "id": 1, "nombre_original": "documento-prueba.pdf", "proposito": "solicitud", "tipo_mime": "application/pdf", "tamano_bytes": 28 } ],
+  "dias_pendientes": 0, "dias_atencion": null
+}
 ```
 
-### Análisis
+**Validaciones y errores.** Todos los errores usan el formato `{ "detail": "mensaje" }`:
 
-**¿Por qué una sola URL puede generar múltiples solicitudes HTTP?**
+| Código | Cuándo |
+|---|---|
+| 400 | Regla de negocio incumplida: servicio sin el adjunto exigido, más de 5 archivos, falta el motivo o el responsable, responsable que no es de atención |
+| 401 | Falta el token o venció |
+| 403 | El rol no puede hacer la operación |
+| 404 | La solicitud o el adjunto no existe o el usuario no puede verlo (se responde igual para no revelar qué números existen) |
+| 409 | Transición de estado no permitida o solicitud en estado final |
+| 413 / 415 | Archivo demasiado grande o de un tipo que no es PDF, JPG ni PNG |
+| 422 | Datos con formato inválido o archivo vacío |
 
-> Porque una página web se compone de muchos archivos separados que el navegador debe descargar por separado.
-> Por ejemplo CSS para el diseño y scripts JavaScript para la interactividad.
+## 7. Pruebas de API e integración y evidencias de funcionamiento
 
-------------------------------------------------------------------------
+El script `evidencias/probar_api.py` ejecuta 90 pruebas funcionales contra la API real con una base de datos temporal (`pruebas.db`, que se borra al terminar) y no toca `app.db`. Cada línea muestra el identificador, el requisito, el método, la ruta y el código esperado y obtenido.
 
-# 3. Análisis de una solicitud HTTP
-
-En **Network**, seleccione una de las solicitudes realizadas por el
-navegador, preferiblemente la correspondiente al documento principal.
-
-Identifique la información solicitada a continuación.
-
-  Elemento              Resultado
-  --------------------- -----------
-  URL                   https://www.itm.edu.co/formatos-institucionales/
-  Método HTTP           GET
-  Código de estado      200 OK
-  Host / dominio        www.itm.edu.co
-  Tipo de recurso       text/html; charset=UTF-8 
-  Tiempo de respuesta   93138 bytes (gzip)
-
-## Flujo que se está observando
-
-``` mermaid
-sequenceDiagram
-    participant N as Navegador
-    participant S as Servidor
-    N->>S: Solicitud HTTP GET
-    S-->>N: Respuesta HTTP 200 OK
+```powershell
+python evidencias/probar_api.py
+python evidencias/verificar_modelo.py
 ```
 
-## Evidencia
+**Resultado: 90 de 90 pruebas aprobadas** y todas las verificaciones del modelo de datos aprobadas.
 
-``` markdown
-![Análisis de la solicitud HTTP](evidencias/request.png)
-```
+| Grupo | Pruebas | Qué comprueban | Resultados |
+|---|---|---|---|
+| Autenticación, catálogo y roles | T-01 a T-15 | Registro, login, tokens inválidos o vencidos, hash de contraseñas, control por rol | [pruebas_autenticacion_resultado.txt](evidencias/pruebas_autenticacion_resultado.txt) |
+| Creación de solicitudes | T-16 a T-27 | Adjunto obligatorio, tipo, contenido y tamaño de archivos, límite de archivos, radicados únicos | [pruebas_solicitudes_resultado.txt](evidencias/pruebas_solicitudes_resultado.txt) |
+| Consulta | T-28 a T-46 | Visibilidad por rol, filtros, paginación, 404 en lo ajeno, notas internas ocultas, descarga de adjuntos | [pruebas_consulta_resultado.txt](evidencias/pruebas_consulta_resultado.txt) |
+| Gestión | T-47 a T-83 | Flujo completo, transiciones válidas e inválidas, motivos, reasignación, prioridad, notas, cancelación, estados finales | [pruebas_gestion_resultado.txt](evidencias/pruebas_gestion_resultado.txt) |
+| Resumen | T-84 a T-90 | Conteos consistentes con la base de datos, filtros por fecha, acceso solo para coordinación | [pruebas_resumen_resultado.txt](evidencias/pruebas_resumen_resultado.txt) |
 
-### Análisis
+**Evidencias** (carpeta [evidencias/](evidencias/)):
 
-**¿Qué recurso solicitó el navegador?**
+- Proceso completo en la interfaz: `ui-01-login.png`, `ui-02-mis-solicitudes.png`, `ui-04-detalle-solicitante-recibida.png`, `ui-05-bandeja.png`, `ui-04-detalle-personal-pendiente.png`, `ui-04-detalle-personal-gestion.png`, `ui-04-detalle-solicitante-finalizada.png` y `ui-06-resumen.png`.
+- Casos válidos en la API (Swagger): `solicitud-crear-201.png`, `consulta-listado-atencion-200.png`, `consulta-historial-personal-200.png`, `gestion-aceptar-200.png`, `gestion-finalizar-200.png`, `resumen-coordinacion-200.png`, `auth-login-200.png`.
+- Casos inválidos: `solicitud-sin-adjunto-400.png`, `solicitud-tipo-415.png`, `ui-03-nueva-sin-adjunto.png`, `consulta-detalle-ajena-404.png`, `gestion-transicion-409.png`, `gestion-cancelar-409.png`, `auth-atencion-403.png`.
+- Las capturas de la API de los pull requests 3 a 7 se generaron ejecutando el código del repositorio en un entorno de pruebas aparte, con los mismos datos de demostración.
 
-> El navegador solicitó el documento HTML principal de la página de formatos institucionales del ITM. Hizo un GET a la URL https://www.itm.edu.co/formatos-institucionales/, que es el archivo HTML que contiene la estructura y contenido de la página web.
+La matriz que une cada condición obligatoria con sus requisitos, implementación, pruebas y evidencias está en [docs/trazabilidad.md](docs/trazabilidad.md).
 
-**¿Qué información permite determinar si la solicitud fue atendida
-correctamente?**
+## 8. Control de versiones
 
-> El código de estado HTTP 200 OK indica que la solicitud fue atendida correctamente.
+- **Repositorio:** https://github.com/KBerrioC/Proyecto-final-de-sistema-solicitudes-servicio
+- **Flujo de trabajo:** una rama por tarea, commits descriptivos con el formato `tipo: descripción (requisito)` y pull requests con propósito, cambios, pruebas y requisitos asociados.
+- **Pull requests relevantes y aportes:**
 
-------------------------------------------------------------------------
+| Rama | Aporte |
+|---|---|
+| `docs/requisitos-entrevista`, `docs/diseno-api`, `docs/diseno-arquitectura-interfaces` | Entrevista, requisitos y diseño completo |
+| `chore/estructura-base` y `feat/base-backend` | Estructura del repositorio, modelo de datos y semillas |
+| `feat/autenticacion` | Registro, login, roles y control de acceso |
+| `feat/crear-solicitudes` | Creación de solicitudes con adjuntos (CA-01) |
+| `feat/consulta-solicitudes` | Listado, detalle, historial y descarga (CA-03, CA-04, CA-05) |
+| `feat/gestion-solicitudes` | Evaluación, finalización, reasignación, prioridad, notas, información y cancelación (CA-02) |
+| `feat/resumen-coordinacion` | Resumen consolidado (CA-06) |
+| `feat/frontend` | Seis pantallas de la interfaz |
+| `docs/cierre` | Matriz de trazabilidad, README y ajustes del diseño |
 
-# 4. Inspección del DOM
+## 9. Conclusiones y limitaciones
 
-Seleccione un elemento visible de la aplicación, por ejemplo:
+**Cumplimiento.** Se cumplen las seis condiciones obligatorias (CA-01 a CA-06): el sistema registra solicitudes con adjuntos según el servicio, gestiona el flujo de evaluación hasta la finalización con respuesta, conserva un historial con autor y fecha, muestra a cada rol solo lo que le corresponde y ofrece un resumen para coordinación. Cada requisito tiene su prueba en la [matriz de trazabilidad](docs/trazabilidad.md).
 
--   un botón;
--   un título;
--   un enlace;
--   un campo de formulario;
--   un elemento del menú.
+**Dificultades técnicas y soluciones.**
+- SQLite no hace cumplir las claves foráneas por defecto: se activó `PRAGMA foreign_keys=ON` en cada conexión y se comprobó con `verificar_modelo.py`.
+- bcrypt solo admite 72 bytes: la validación de la contraseña cuenta bytes, no caracteres, para que una contraseña con tildes no falle al guardarse.
+- Si una operación falla después de escribir archivos en disco, podrían quedar adjuntos huérfanos: se deshace la transacción y se borran los archivos de esa operación (pruebas T-20 a T-23 y T-63).
+- Para que un solicitante no pueda deducir qué números de solicitud existen, lo ajeno responde 404, igual que lo inexistente (T-37).
+- Al probar la interfaz se vio que quien asigna una solicitud a otra persona deja de verla (visibilidad del personal, SUP-10) y la pantalla mostraba un error aunque la acción había funcionado: ahora lo lleva a la bandeja con un aviso, y la regla quedó documentada en el diseño.
+- En Windows, Git mostraba archivos como modificados solo por la diferencia de saltos de línea (CRLF y LF): se resolvió comparando con `git diff --ignore-cr-at-eol` y restaurando esos archivos.
 
-Utilizando **Elementos / Elements**:
-
-1.  Localice el elemento dentro del DOM.
-2.  Identifique la etiqueta HTML utilizada.
-3.  Modifique temporalmente su contenido desde las herramientas de
-    desarrollo.
-4.  Observe el cambio producido en la interfaz.
-5.  Registre la evidencia.
-
-## Resultados
-
-**Elemento seleccionado:** `Botón "Descargar" de uno de los formatos institucionales (visualmente parece un botón, pero está implementado como un enlace)`
-
-**Etiqueta HTML:** `<a>`
-
-**Contenido original:** `descargar`
-
-**Modificación realizada:** `Bajar esa vuelta`
-
-El proceso observado puede representarse conceptualmente así:
-
-``` mermaid
-flowchart LR
-    H[HTML] --> B[Navegador]
-    B --> D[DOM]
-    J[JavaScript / DevTools] -->|consulta o modifica| D
-    D --> I[Interfaz]
-```
-
-## Evidencia
-
-``` markdown
-![Inspección y modificación del DOM](evidencias/dom.png)
-```
-
-### Análisis
-
-**¿La modificación realizada sobre el DOM alteró permanentemente la
-aplicación o los archivos almacenados en el servidor? Justifique.**
-
-> No. La modificación fue completamente temporal y solo existe en la copia del DOM que el navegador construyó en memoria (RAM) para esa sesión. DevTools no tiene ningún canal de comunicación hacia el servidor cuando se edita el HTML desde el panel Elements; simplemente reescribe el árbol DOM local que el navegador está renderizando. Al recargar la página (F5), el navegador vuelve a solicitar el HTML original al servidor y el cambio desaparece por completo, porque el archivo fuente alojado en itm.edu.co nunca fue modificado. Esto demuestra que inspeccionar y editar el DOM es una herramienta de depuración del lado del cliente, no un mecanismo de edición real del contenido publicado.
-
-------------------------------------------------------------------------
-
-# 5. Análisis de una interacción dinámica
-
-Regrese a **Network** y limpie las solicitudes registradas.
-
-Realice una acción dentro de la aplicación que pueda generar una
-interacción con el servidor, por ejemplo:
-
--   consultar;
--   buscar;
--   filtrar;
--   seleccionar una opción;
--   enviar información.
-
-Observe si aparece una nueva solicitud en Network.
-
-## Resultados
-
-  Elemento                       Resultado
-  ------------------------------ -----------
-  Acción realizada               Clic en el enlace "Descargar" del formato `presentacion-2026.pptx`
-  ¿Generó una nueva solicitud?   Sí
-  URL solicitada                 `https://www.google-analytics.com/g/collect?...` (endpoint de recolección de eventos de Google Analytics 4)
-  Método HTTP                    POST
-  Código de estado               204 No Content
-  Tipo de respuesta              Vacía (beacon de analítica, no devuelve contenido)
-
-## Ciclo de interacción
-
-``` mermaid
-flowchart LR
-    U[Usuario] -->|interacción| J[JavaScript]
-    J -->|Solicitud HTTP| S[Servidor]
-    S -->|Respuesta HTTP| J
-    J -->|actualiza| D[DOM]
-    D --> I[Interfaz actualizada]
-    I --> U
-```
-
-## Evidencia
-
-``` markdown
-![Interacción observada en Network](evidencias/interaccion.png)
-```
-
-### Análisis
-
-**Explique la relación entre la acción realizada por el usuario y la
-solicitud observada.**
-
-> Al hacer clic en el enlace de descarga, un script de Google Analytics (GA4) previamente cargado en la página detectó ese clic mediante un "listener" de eventos y, sin recargar la página, disparó automáticamente una solicitud HTTP en segundo plano hacia `google-analytics.com`. En la propia URL de la solicitud se pueden identificar los parámetros `en=file_download` (nombre del evento registrado), `ep.link_url` (el archivo descargado), `ep.link_text=Descargar` (el texto del enlace) y `ep.file_extension=pptx`. Es decir, la acción del usuario no solo produjo el efecto visible (la descarga del archivo), sino también un efecto invisible: el registro del evento en un servicio externo de analítica, ajeno al dominio de la aplicación (itm.edu.co), lo que evidencia que una sola interacción del usuario puede desencadenar múltiples solicitudes hacia distintos servidores.
-
-------------------------------------------------------------------------
-
-# 6. Reconstrucción del flujo observado
-
-A partir de las evidencias propias recolectadas en las secciones 2 a 5,
-el flujo comprobado durante la práctica fue el siguiente:
-
-``` mermaid
-flowchart LR
-    U[Usuario] -->|clic en enlace Descargar| N[Navegador]
-    N -->|localiza nodo en| D[DOM]
-    D -->|dispara evento de clic| J[JavaScript de Analytics]
-    J -->|Solicitud HTTP POST| S[Servidor de Google Analytics]
-    S -->|Respuesta HTTP 204 No Content| J
-    N -->|Solicitud HTTP GET del archivo| SV[Servidor ITM]
-    SV -->|Respuesta HTTP 200 OK + archivo| N
-    N -->|actualiza| I[Interfaz - descarga iniciada]
-    I --> U
-```
-
-------------------------------------------------------------------------
-
-# 7. Observado vs. inferido
-
-Una herramienta de desarrollo permite observar una parte del sistema,
-pero no necesariamente todo lo que ocurre en el servidor.
-
-## Elementos observados directamente
-
--   Las solicitudes HTTP realizadas por el navegador y sus respuestas (URL, método, código de estado, tipo de recurso), tanto hacia itm.edu.co como hacia google-analytics.com.
--   La estructura HTML del DOM, incluida la etiqueta `<a>` del botón de descarga y sus atributos (`href`, `target`, estilos en línea).
--   El efecto inmediato de una interacción del usuario (el clic) sobre el tráfico de red, comprobando que se dispara una nueva solicitud sin recargar la página.
-
-## Elementos inferidos
-
--   Qué hace Google con los datos recibidos en el servidor de Analytics (cómo los almacena, procesa o agrega) — no es visible desde el navegador, solo se sabe que los datos fueron enviados.
--   La lógica interna del servidor de ITM para procesar la solicitud del archivo `.pptx` (por ejemplo, si viene de un sistema de archivos plano o de algún control de acceso) — solo se observa la respuesta, no el procesamiento interno.
--   La existencia de una base de datos o sistema de gestión de contenido (WordPress) detrás de la página — se infiere por convenciones de URL y estructura, pero no se comprobó directamente accediendo al backend.
-
-------------------------------------------------------------------------
-
-# 8. Conclusiones
-
-1.  Una sola acción visible del usuario (un clic) puede generar múltiples solicitudes HTTP simultáneas hacia servidores distintos: una hacia el servidor que aloja el recurso solicitado (itm.edu.co) y otra hacia un servicio externo de analítica (Google Analytics), lo que evidencia que una aplicación web moderna rara vez depende de un único servidor.
-2.  El código de estado HTTP es la principal señal para determinar si una solicitud fue atendida correctamente: un 200 OK confirma la entrega exitosa de un recurso completo, mientras que un 204 No Content confirma que el servidor recibió y procesó la solicitud aunque no devuelva contenido, como ocurre con los beacons de analítica.
-3.  Las modificaciones realizadas sobre el DOM desde las herramientas de desarrollo no afectan al servidor ni a los archivos publicados, porque el DOM es una representación en memoria que el navegador reconstruye únicamente a partir del HTML original en cada carga; esto separa claramente la "vista" que puede manipular el cliente de la "fuente de verdad" que permanece en el servidor.
-
-------------------------------------------------------------------------
-
-# 9. Entrega
-
-La estructura final esperada es:
-
-``` text
-laboratorio-01/
-├── README.md
-└── evidencias/
-    ├── network.png
-    ├── request.png
-    ├── dom.png
-    └── interaccion.png
-```
-
-Antes de entregar, verifique:
-
--   [x] El `README.md` se visualiza correctamente en GitHub.
--   [x] Las imágenes se muestran dentro del README.
--   [x] Se documentaron al menos cinco recursos.
--   [x] Se analizó una solicitud HTTP.
--   [x] Se identificó y modificó un elemento del DOM.
--   [x] Se analizó una interacción de la aplicación.
--   [x] El diagrama final corresponde a lo observado.
--   [x] Se diferenciaron elementos observados e inferidos.
--   [x] Se redactaron tres conclusiones técnicas.
--   [ ] Se realizó `commit` y `push` al repositorio.
-
-------------------------------------------------------------------------
-
-## Criterio de documentación
-
-> **Las capturas son evidencia, no la respuesta.**
-
-Cada evidencia debe estar acompañada por una explicación que indique
-**qué se observó, qué significa y cómo se relaciona con el
-funcionamiento de la aplicación web**.
+**Restricciones y comportamientos pendientes dentro del alcance.**
+- Los supuestos SUP-01 a SUP-11 no se confirmaron con el docente (sección 9 de [docs/requisitos.md](docs/requisitos.md)); la revisión de requisitos se hará al final, según lo acordado.
+- El sistema guarda los adjuntos en disco local y los datos en SQLite: sirve para una instalación pequeña y de un solo servidor, no para varios servidores.
+- No incluye recuperación de contraseña ni gestión de usuarios de personal desde la interfaz: el personal y coordinación se crean con `seed.py`.
+- No envía correos (fuera de alcance); el solicitante se entera de los cambios al consultar su solicitud.
+- La interfaz se probó recorriendo el proceso completo en un navegador automatizado y con capturas; no hay un conjunto de pruebas de interfaz en el repositorio.
