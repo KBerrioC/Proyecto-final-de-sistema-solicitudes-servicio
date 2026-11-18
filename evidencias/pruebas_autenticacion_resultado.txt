@@ -1,0 +1,17 @@
+[APROBADA] T-01 | RF-01 | Registro v├ílido de solicitante | POST /api/auth/registro | esperado 201, obtenido 201
+[APROBADA] T-02 | RF-01, RNF-02 | Registro con contrase├▒a demasiado corta | POST /api/auth/registro | esperado 422, obtenido 422
+[APROBADA] T-03 | RF-01 | Registro con correo ya existente (sin distinguir may├║sculas) | POST /api/auth/registro | esperado 409, obtenido 409
+[APROBADA] T-04 | RF-02 | Inicio de sesi├│n v├ílido | POST /api/auth/login | esperado 200, obtenido 200
+[APROBADA] T-05 | RF-02 | Inicio de sesi├│n con contrase├▒a incorrecta | POST /api/auth/login | esperado 401, obtenido 401
+[APROBADA] T-06 | RF-02, RNF-03 | Correo inexistente: mismo error que contrase├▒a incorrecta | POST /api/auth/login | esperado 401, obtenido 401
+[APROBADA] T-07 | RF-03 | Perfil sin token | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-08 | RF-02, RF-03 | Perfil con token v├ílido | GET /api/auth/perfil | esperado 200, obtenido 200
+[APROBADA] T-09 | RNF-01 | Perfil con token manipulado | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-10 | RNF-01 | Perfil con token vencido | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-11 | RF-04 | Cat├ílogo de servicios sin token | GET /api/servicios | esperado 401, obtenido 401
+[APROBADA] T-12 | RF-04 | Cat├ílogo de servicios con token | GET /api/servicios | esperado 200, obtenido 200
+[APROBADA] T-13 | RF-03, RF-13 | Lista de atenci├│n con rol solicitante (no autorizado) | GET /api/usuarios/atencion | esperado 403, obtenido 403
+[APROBADA] T-14 | RF-03, RF-13 | Lista de atenci├│n con rol atenci├│n | GET /api/usuarios/atencion | esperado 200, obtenido 200
+[APROBADA] T-15 | RNF-01 | La contrase├▒a se guarda con hash, no en claro | GET /api/auth/perfil | esperado 200, obtenido 200
+
+Resultado: 15 de 15 pruebas aprobadas
