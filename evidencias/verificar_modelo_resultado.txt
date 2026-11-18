@@ -1,0 +1,8 @@
+[APROBADA] Se crean las cinco tablas -> adjuntos, eventos, servicios, solicitudes, usuarios
+[APROBADA] Las claves for├íneas est├ín activas
+[APROBADA] Rechaza una solicitud con solicitante y servicio inexistentes -> FOREIGN KEY constraint failed
+[APROBADA] Rechaza un rol inv├ílido -> CHECK constraint failed: ck_usuarios_rol
+[APROBADA] Una solicitud v├ílida se guarda con su estado inicial y sus relaciones -> estado=recibida, prioridad=media
+[APROBADA] Rechaza borrar un usuario que tiene solicitudes (ON DELETE RESTRICT) -> FOREIGN KEY constraint failed
+
+Resultado: todas las verificaciones aprobadas
