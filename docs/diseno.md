@@ -10,8 +10,8 @@
 1. [Decisiones técnicas](#1-decisiones-técnicas)
 2. [Arquitectura](#2-arquitectura) _(pendiente)_
 3. [Modelo de datos](#3-modelo-de-datos)
-4. [Especificación de la API](#4-especificación-de-la-api) _(pendiente)_
-5. [Reglas de negocio y control de acceso](#5-reglas-de-negocio-y-control-de-acceso) _(pendiente)_
+4. [Especificación de la API](#4-especificación-de-la-api)
+5. [Reglas de negocio y control de acceso](#5-reglas-de-negocio-y-control-de-acceso)
 6. [Interfaces y recorridos de los actores](#6-interfaces-y-recorridos-de-los-actores) _(pendiente)_
 7. [Correspondencia con los requisitos](#7-correspondencia-con-los-requisitos) _(pendiente)_
 
@@ -149,11 +149,244 @@ erDiagram
 
 ## 4. Especificación de la API
 
-_Pendiente._ Incluirá los recursos, métodos HTTP, formatos de solicitud y respuesta, validaciones, códigos de error y permisos de cada endpoint, justificados por el proceso (RNF-09).
+### 4.1 Convenciones
+
+- Todas las rutas cuelgan de `/api`. El formato es JSON (UTF-8), salvo los endpoints con archivos (`multipart/form-data`) y el inicio de sesión (`application/x-www-form-urlencoded`, el formato estándar OAuth2, para que el botón *Authorize* de la documentación interactiva funcione).
+- Autenticación: cabecera `Authorization: Bearer <token>`. El token es un JWT con expiración (`ACCESS_TOKEN_EXPIRE_MINUTES`). Solo el registro y el inicio de sesión son públicos.
+- Las fechas usan el formato ISO 8601.
+- Los errores devuelven `{"detail": "mensaje"}`. Los errores de formato (422) usan la estructura estándar de FastAPI y Pydantic.
+- No hay `PUT` ni `DELETE`: la cancelación es un cambio de estado y las solicitudes no se eliminan (RNF-09, E-12).
+- La documentación interactiva queda disponible en `/docs`.
+
+### 4.2 Resumen de endpoints
+
+| ID | Método | Ruta | Quién | Éxito | Errores | Requisitos |
+|---|---|---|---|---|---|---|
+| EP-01 | POST | `/api/auth/registro` | Público | 201 | 409, 422 | RF-01 |
+| EP-02 | POST | `/api/auth/login` | Público | 200 | 401, 422 | RF-02 |
+| EP-03 | GET | `/api/auth/perfil` | Cualquiera | 200 | 401 | RF-02, RF-03 |
+| EP-04 | GET | `/api/servicios` | Cualquiera | 200 | 401 | RF-04 |
+| EP-05 | GET | `/api/usuarios/atencion` | Atención, coordinación | 200 | 401, 403 | RF-13 |
+| EP-06 | POST | `/api/solicitudes` | Solicitante | 201 | 400, 401, 403, 413, 415, 422 | RF-05, RF-06 |
+| EP-07 | GET | `/api/solicitudes` | Cualquiera | 200 | 401, 422 | RF-07, RF-09, RF-19 |
+| EP-08 | GET | `/api/solicitudes/{id}` | Cualquiera | 200 | 401, 404 | RF-07, RF-19 |
+| EP-09 | PATCH | `/api/solicitudes/{id}/estado` | Atención, coordinación | 200 | 400, 401, 403, 404, 409, 422 | RF-10, RF-11 |
+| EP-10 | POST | `/api/solicitudes/{id}/finalizacion` | Atención, coordinación | 200 | 401, 403, 404, 409, 413, 415, 422 | RF-16 |
+| EP-11 | PATCH | `/api/solicitudes/{id}/responsable` | Atención, coordinación | 200 | 400, 401, 403, 404, 409, 422 | RF-13 |
+| EP-12 | PATCH | `/api/solicitudes/{id}/prioridad` | Atención, coordinación | 200 | 401, 403, 404, 409, 422 | RF-14 |
+| EP-13 | POST | `/api/solicitudes/{id}/notas` | Atención, coordinación | 201 | 401, 403, 404, 409, 422 | RF-15 |
+| EP-14 | POST | `/api/solicitudes/{id}/informacion` | Solicitante | 200 | 401, 403, 404, 409, 413, 415, 422 | RF-12 |
+| EP-15 | POST | `/api/solicitudes/{id}/cancelacion` | Solicitante | 200 | 401, 403, 404, 409 | RF-08 |
+| EP-16 | GET | `/api/solicitudes/{id}/eventos` | Cualquiera | 200 | 401, 404 | RF-17 |
+| EP-17 | GET | `/api/adjuntos/{id}` | Cualquiera autorizado | 200 | 401, 404 | RF-06, RNF-05 |
+| EP-18 | GET | `/api/resumen` | Coordinación | 200 | 401, 403, 422 | RF-18 |
+
+### 4.3 Códigos de error
+
+| Código | Cuándo se usa |
+|---|---|
+| 400 | Se incumple una regla de negocio: falta un adjunto exigido, el responsable no es de atención o ya es el actual |
+| 401 | Sin token, token vencido o credenciales incorrectas |
+| 403 | El rol (o el funcionario) no puede hacer esa operación |
+| 404 | El recurso no existe, **o existe pero el usuario no puede verlo** (no se revela su existencia) |
+| 409 | La operación no es válida para el estado actual (transición no permitida, estado final) o el recurso ya existe (correo repetido) |
+| 413 | Adjunto mayor que el tamaño máximo |
+| 415 | Adjunto de tipo no permitido |
+| 422 | Datos con formato inválido, validados por Pydantic |
+
+### 4.4 Detalle de los endpoints
+
+#### Autenticación y datos básicos
+
+**EP-01 `POST /api/auth/registro`** – Crea una cuenta de solicitante.
+- Entrada (JSON): `nombre` (2 a 100 caracteres), `correo` (formato válido), `password` (mínimo 8 caracteres), `tipo_solicitante` (`estudiante`, `docente`, `egresado` o `externo`).
+- Salida 201: `{ "id", "nombre", "correo", "rol": "solicitante", "tipo_solicitante" }`. Nunca devuelve la contraseña.
+- Errores: 409 si el correo ya existe; 422 si algún dato no cumple el formato.
+
+**EP-02 `POST /api/auth/login`** – Inicia sesión.
+- Entrada (formulario): `username` (el correo) y `password`.
+- Salida 200: `{ "access_token", "token_type": "bearer", "usuario": { "id", "nombre", "rol" } }`.
+- Errores: 401 si el correo o la contraseña son incorrectos, o si el usuario está inactivo. El mensaje es el mismo en ambos casos.
+
+**EP-03 `GET /api/auth/perfil`** – Devuelve `{ "id", "nombre", "correo", "rol", "tipo_solicitante" }` del usuario autenticado.
+
+**EP-04 `GET /api/servicios`** – Devuelve los servicios activos: `[ { "id", "nombre", "descripcion", "requiere_adjunto", "prioridad_defecto" } ]`.
+
+**EP-05 `GET /api/usuarios/atencion`** – Devuelve el personal de atención activo `[ { "id", "nombre", "correo" } ]`, para elegir el responsable.
+
+#### Solicitudes
+
+**EP-06 `POST /api/solicitudes`** – Crea una solicitud (CA-01).
+- Entrada (`multipart/form-data`): `servicio_id`, `asunto` (5 a 150 caracteres), `descripcion` (10 a 2000 caracteres) y `archivos` (cero o más).
+- Reglas: el servicio debe existir y estar activo. Si el servicio requiere adjunto y no llega ningún archivo, se responde 400 y no se guarda nada (RN-06). Cada archivo debe ser PDF, JPG o PNG y no superar el máximo (413 y 415).
+- Efecto: la solicitud queda en `recibida`, con la prioridad por defecto del servicio, un radicado nuevo y el evento `creada`.
+- Salida 201: el detalle de la solicitud (ver EP-08).
+
+**EP-07 `GET /api/solicitudes`** – Lista las solicitudes que el usuario puede ver (sección 5.3).
+- Parámetros opcionales: `estado`, `servicio_id`, `prioridad`, `responsable_id`, `limite` (por defecto 20, máximo 100) y `desplazamiento`.
+- Orden: para el personal, por prioridad (alta primero) y luego por antigüedad; para el solicitante, de más reciente a más antigua.
+- Salida 200: `{ "total", "items": [ { "id", "radicado", "asunto", "servicio", "estado", "prioridad", "solicitante", "responsable", "creado_en", "dias_pendientes" } ] }`. El campo `solicitante` solo se incluye para el personal. `dias_pendientes` es nulo en estados finales (RN-10).
+
+**EP-08 `GET /api/solicitudes/{id}`** – Detalle de una solicitud (CA-03, CA-05).
+- Salida 200:
+
+```json
+{
+  "id": 12,
+  "radicado": "SOL-2026-00012",
+  "servicio": { "id": 1, "nombre": "Certificado de estudios" },
+  "asunto": "Certificado para trámite de beca",
+  "descripcion": "Necesito un certificado de estudios del último semestre.",
+  "estado": "en_gestion",
+  "prioridad": "media",
+  "solicitante": { "id": 7, "nombre": "Ana Pérez" },
+  "responsable": { "id": 3, "nombre": "Luis Gómez" },
+  "respuesta": null,
+  "adjuntos": [
+    { "id": 5, "nombre_original": "documento.pdf", "proposito": "solicitud", "tipo_mime": "application/pdf", "tamano_bytes": 120345 }
+  ],
+  "creado_en": "2026-11-17T09:30:00",
+  "actualizado_en": "2026-11-17T11:05:00",
+  "finalizado_en": null,
+  "dias_pendientes": 0,
+  "dias_atencion": null
+}
+```
+
+- Si la solicitud no existe o no es visible para ese usuario, se responde 404.
+- Al finalizar, `respuesta` y `finalizado_en` tienen valor, `dias_pendientes` es nulo y `dias_atencion` muestra el tiempo de atención.
+
+**EP-09 `PATCH /api/solicitudes/{id}/estado`** – Mueve la solicitud en el flujo de evaluación (CA-02).
+- Entrada (JSON): `estado` (`en_evaluacion`, `en_gestion`, `pendiente_informacion` o `rechazada`), `motivo`, `responsable_id` y `prioridad` (opcionales según el caso).
+
+| `estado` pedido | Desde | Datos obligatorios | Eventos |
+|---|---|---|---|
+| `en_evaluacion` | `recibida` | Ninguno | `evaluacion_iniciada` |
+| `en_gestion` | `en_evaluacion` | `responsable_id` (de atención). `prioridad` opcional | `aceptada`, `asignada` y, si cambia la prioridad, `prioridad_cambiada` |
+| `pendiente_informacion` | `en_evaluacion` | `motivo` | `informacion_solicitada` |
+| `rechazada` | `en_evaluacion` | `motivo` | `rechazada` |
+
+- Cualquier otro valor de `estado` (por ejemplo `finalizada` o `cancelada`) se rechaza con 422, porque esas acciones tienen su propio endpoint. Una transición no permitida desde el estado actual responde 409 (RN-01). Un dato obligatorio ausente o un responsable que no es de atención responde 400 (RN-02, RN-03, RN-07).
+- Ejemplo de entrada para aceptar: `{ "estado": "en_gestion", "responsable_id": 3, "prioridad": "alta" }`.
+- Salida 200: el detalle de la solicitud actualizado.
+
+**EP-10 `POST /api/solicitudes/{id}/finalizacion`** – Finaliza con una respuesta (CA-05).
+- Entrada (`multipart/form-data`): `respuesta` (10 a 2000 caracteres) y `archivo` opcional (PDF, JPG o PNG).
+- Reglas: la solicitud debe estar en `en_gestion` (409 en otro caso) y ser del responsable asignado, salvo que quien llama sea coordinación (403).
+- Efecto: estado `finalizada`, `respuesta` y `finalizado_en` guardados, el adjunto con propósito `respuesta` y el evento `finalizada`, visible para el solicitante (RN-04).
+- Salida 200: el detalle actualizado.
+
+**EP-11 `PATCH /api/solicitudes/{id}/responsable`** – Reasigna el responsable.
+- Entrada (JSON): `responsable_id` y `motivo` opcional.
+- Reglas: la solicitud debe estar en `en_gestion` (409). El nuevo responsable debe ser personal de atención activo y distinto del actual (400). El personal de atención solo reasigna las solicitudes que tiene asignadas; coordinación reasigna cualquiera (403).
+- Efecto: evento `reasignada` con `de_responsable_id` y `a_responsable_id` (RN-08).
+- Salida 200: el detalle actualizado.
+
+**EP-12 `PATCH /api/solicitudes/{id}/prioridad`** – Ajusta la prioridad.
+- Entrada (JSON): `prioridad` (`alta`, `media` o `baja`) y `motivo` obligatorio.
+- Reglas: la solicitud no debe estar en estado final (409). El personal de atención solo ajusta las suyas; coordinación cualquiera.
+- Efecto: evento `prioridad_cambiada` con el motivo (RN-09).
+- Salida 200: el detalle actualizado.
+
+**EP-13 `POST /api/solicitudes/{id}/notas`** – Registra una nota o una acción de gestión.
+- Entrada (JSON): `texto` (3 a 1000 caracteres) y `visible_solicitante` (por defecto `false`).
+- Reglas: la solicitud no debe estar en estado final (409). El personal de atención solo registra notas en las suyas; coordinación en cualquiera.
+- Salida 201: el evento creado.
+
+**EP-14 `POST /api/solicitudes/{id}/informacion`** – El solicitante responde a una petición de información.
+- Entrada (`multipart/form-data`): `texto` y `archivos` (al menos uno de los dos; si no llega ninguno, 422).
+- Reglas: solo el solicitante dueño; la solicitud debe estar en `pendiente_informacion` (409).
+- Efecto: estado `en_evaluacion`, adjuntos con propósito `informacion` y evento `informacion_recibida`.
+- Salida 200: el detalle actualizado.
+
+**EP-15 `POST /api/solicitudes/{id}/cancelacion`** – El solicitante cancela su solicitud.
+- Entrada (JSON): `motivo` opcional.
+- Reglas: solo el solicitante dueño; el estado debe ser `recibida`, `en_evaluacion` o `pendiente_informacion` (409 en otro caso, RN-11).
+- Efecto: estado `cancelada` y evento `cancelada`.
+- Salida 200: el detalle actualizado.
+
+**EP-16 `GET /api/solicitudes/{id}/eventos`** – Historial de trazabilidad (CA-04).
+- Salida 200: `[ { "id", "tipo", "autor": { "id", "nombre", "rol" }, "estado_anterior", "estado_nuevo", "detalle", "creado_en" } ]`, ordenado por fecha. El personal ve además `visible_solicitante`.
+- El solicitante solo recibe los eventos con `visible_solicitante = true` (RN-05).
+
+**EP-17 `GET /api/adjuntos/{id}`** – Descarga un archivo.
+- Devuelve el archivo con su nombre original. Solo lo puede descargar quien puede ver la solicitud a la que pertenece; en otro caso, 404 (RNF-05).
+
+**EP-18 `GET /api/resumen`** – Resumen consolidado para coordinación (CA-06).
+- Parámetros opcionales: `desde` y `hasta` (fecha de creación).
+- Salida 200:
+
+```json
+{
+  "total": 48,
+  "por_estado": { "recibida": 5, "en_evaluacion": 4, "pendiente_informacion": 2, "en_gestion": 12, "finalizada": 20, "rechazada": 3, "cancelada": 2 },
+  "por_servicio": [ { "servicio": "Certificado de estudios", "total": 21 } ],
+  "por_responsable": [ { "responsable": "Luis Gómez", "total": 9 } ],
+  "tiempo_promedio_atencion_dias": 3.4,
+  "pendientes_mas_antiguas": [
+    { "id": 4, "radicado": "SOL-2026-00004", "asunto": "Actualización de datos", "estado": "en_gestion", "responsable": "Luis Gómez", "dias_pendientes": 11 }
+  ]
+}
+```
+
+- `por_responsable` cuenta las solicitudes que tienen responsable asignado. `tiempo_promedio_atencion_dias` se calcula con las finalizadas. `pendientes_mas_antiguas` lista las 10 solicitudes no finalizadas con más días pendientes (RN-10, E-08).
 
 ## 5. Reglas de negocio y control de acceso
 
-_Pendiente._ Incluirá cómo se aplican RN-01 a RN-12 y la matriz de permisos por rol en el servidor.
+### 5.1 Autenticación y autorización
+
+- Una dependencia de FastAPI obtiene el usuario a partir del token y rechaza con 401 si falta, venció o el usuario está inactivo.
+- Otra dependencia exige uno o varios roles y rechaza con 403 cuando no corresponden. Cada endpoint declara los roles permitidos de la tabla 4.2.
+- Los permisos se validan siempre en el servidor, aunque la interfaz oculte los botones (RNF-02).
+
+### 5.2 Visibilidad de las solicitudes
+
+| Rol | Solicitudes que puede ver |
+|---|---|
+| Solicitante | Solo las propias (`solicitante_id` igual a su id) |
+| Personal de atención | Las que están en `recibida`, `en_evaluacion` o `pendiente_informacion`, y todas las que tiene asignadas (SUP-10) |
+| Coordinación | Todas |
+
+Si una solicitud existe pero el usuario no puede verla, la API responde 404, igual que si no existiera. Así un solicitante no puede deducir qué números de solicitud hay en el sistema (E-06).
+
+### 5.3 Permisos de gestión sobre una solicitud
+
+- **Evaluar** (EP-09): cualquier funcionario de atención y coordinación.
+- **Finalizar, reasignar, ajustar prioridad y registrar notas** (EP-10 a EP-13): el responsable asignado o coordinación. Esta restricción es una decisión de diseño que concreta «personal autorizado» de CA-02 y la facultad de coordinación para intervenir (E-07).
+- **Informar y cancelar** (EP-14 y EP-15): solo el solicitante dueño.
+
+### 5.4 Cómo se aplica cada regla de negocio
+
+| Regla | Dónde se valida | Respuesta ante incumplimiento |
+|---|---|---|
+| RN-01 Transiciones válidas | Tabla `TRANSICIONES` consultada por una función del servicio antes de cambiar el estado | 409 |
+| RN-02 Motivo en rechazo y petición de información | Validación del cuerpo en EP-09 | 400 |
+| RN-03 Responsable para pasar a «En gestión» | EP-09 | 400 |
+| RN-04 Respuesta al finalizar | Campo obligatorio de EP-10 | 422 |
+| RN-05 Notas internas ocultas | Filtro por rol en EP-16 | El solicitante no las recibe |
+| RN-06 Adjunto obligatorio según el servicio | EP-06 | 400, sin guardar nada |
+| RN-07 Responsable de atención | Consulta del rol en EP-09 y EP-11 | 400 |
+| RN-08 Registro de reasignaciones | EP-09 y EP-11 crean el evento con `de_responsable_id` y `a_responsable_id` | No aplica |
+| RN-09 Prioridad | EP-06 copia la del servicio; EP-12 y EP-09 la ajustan con motivo | 422 |
+| RN-10 Tiempos | Calculados al consultar, a partir de `creado_en` y `finalizado_en` | No aplica |
+| RN-11 Cancelación antes de «En gestión» | EP-15 | 409 |
+| RN-12 Estados finales inmutables | La tabla de transiciones no tiene salidas desde ellos; EP-10 a EP-15 lo comprueban | 409 |
+
+### 5.5 Tabla de transiciones
+
+La función de cambio de estado consulta un diccionario con las transiciones de la sección 4 de [requisitos.md](requisitos.md):
+
+| Estado actual | Estados siguientes permitidos |
+|---|---|
+| `recibida` | `en_evaluacion`, `cancelada` |
+| `en_evaluacion` | `en_gestion`, `pendiente_informacion`, `rechazada`, `cancelada` |
+| `pendiente_informacion` | `en_evaluacion`, `cancelada` |
+| `en_gestion` | `finalizada` |
+| `finalizada`, `rechazada`, `cancelada` | Ninguno |
+
+### 5.6 Eventos del historial
+
+Cada acción que cambia una solicitud crea un evento en la misma transacción, de modo que no puede haber un cambio sin su registro: `creada`, `evaluacion_iniciada`, `aceptada`, `asignada`, `reasignada`, `informacion_solicitada`, `informacion_recibida`, `rechazada`, `prioridad_cambiada`, `nota`, `finalizada` y `cancelada`. Son visibles para el solicitante todos los eventos de cambio de estado y la finalización; las notas son internas salvo que se marquen como visibles.
 
 ## 6. Interfaces y recorridos de los actores
 
