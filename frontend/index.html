@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingresar · Solicitudes de servicio</title>
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <main class="centrado">
+    <h1>Sistema de solicitudes de servicio</h1>
+    <div class="tarjeta">
+      <div class="pestanas">
+        <button type="button" class="btn" id="tab-login">Iniciar sesión</button>
+        <button type="button" class="btn secundario" id="tab-registro">Crear cuenta</button>
+      </div>
+      <div id="mensaje" class="msg" role="alert"></div>
+      <form id="form-login">
+        <label for="login-correo">Correo</label>
+        <input id="login-correo" type="email" required autocomplete="username">
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" type="password" required autocomplete="current-password">
+        <button class="btn" type="submit">Ingresar</button>
+        <p class="ayuda">Datos de demostración: ana.perez@ejemplo.edu, luis.gomez@ejemplo.edu o coordinacion@ejemplo.edu con la contraseña Demo12345!</p>
+      </form>
+      <form id="form-registro" hidden>
+        <label for="reg-nombre">Nombre completo</label>
+        <input id="reg-nombre" type="text" required minlength="2" maxlength="100" autocomplete="name">
+        <label for="reg-correo">Correo</label>
+        <input id="reg-correo" type="email" required autocomplete="email">
+        <label for="reg-tipo">Tipo de solicitante</label>
+        <select id="reg-tipo" required>
+          <option value="estudiante">Estudiante</option><option value="docente">Docente</option>
+          <option value="egresado">Egresado</option><option value="externo">Externo</option>
+        </select>
+        <label for="reg-password">Contraseña (mínimo 8 caracteres)</label>
+        <input id="reg-password" type="password" required minlength="8" maxlength="72" autocomplete="new-password">
+        <button class="btn" type="submit">Crear cuenta</button>
+      </form>
+    </div>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/index.js"></script>
+</body>
+</html>

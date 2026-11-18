@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mis solicitudes · Solicitudes de servicio</title>
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <main>
+    <h1>Mis solicitudes</h1>
+    <div id="mensaje" class="msg" role="alert"></div>
+    <div class="filtros">
+      <div><label for="f-estado">Estado</label><select id="f-estado"><option value="">Todos</option></select></div>
+      <div><a class="btn" href="nueva-solicitud.html">Nueva solicitud</a></div>
+    </div>
+    <div id="lista"></div>
+    <div class="paginacion"><button class="btn secundario" id="anterior" type="button">Anterior</button><span id="pagina"></span><button class="btn secundario" id="siguiente" type="button">Siguiente</button></div>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/mis-solicitudes.js"></script>
+</body>
+</html>
