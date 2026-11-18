@@ -1,0 +1,85 @@
+[APROBADA] T-01 | RF-01 | Registro válido de solicitante | POST /api/auth/registro | esperado 201, obtenido 201
+[APROBADA] T-02 | RF-01, RNF-02 | Registro con contraseña demasiado corta | POST /api/auth/registro | esperado 422, obtenido 422
+[APROBADA] T-03 | RF-01 | Registro con correo ya existente (sin distinguir mayúsculas) | POST /api/auth/registro | esperado 409, obtenido 409
+[APROBADA] T-04 | RF-02 | Inicio de sesión válido | POST /api/auth/login | esperado 200, obtenido 200
+[APROBADA] T-05 | RF-02 | Inicio de sesión con contraseña incorrecta | POST /api/auth/login | esperado 401, obtenido 401
+[APROBADA] T-06 | RF-02, RNF-03 | Correo inexistente: mismo error que contraseña incorrecta | POST /api/auth/login | esperado 401, obtenido 401
+[APROBADA] T-07 | RF-03 | Perfil sin token | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-08 | RF-02, RF-03 | Perfil con token válido | GET /api/auth/perfil | esperado 200, obtenido 200
+[APROBADA] T-09 | RNF-01 | Perfil con token manipulado | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-10 | RNF-01 | Perfil con token vencido | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-11 | RF-04 | Catálogo de servicios sin token | GET /api/servicios | esperado 401, obtenido 401
+[APROBADA] T-12 | RF-04 | Catálogo de servicios con token | GET /api/servicios | esperado 200, obtenido 200
+[APROBADA] T-13 | RF-03, RF-13 | Lista de atención con rol solicitante (no autorizado) | GET /api/usuarios/atencion | esperado 403, obtenido 403
+[APROBADA] T-14 | RF-03, RF-13 | Lista de atención con rol atención | GET /api/usuarios/atencion | esperado 200, obtenido 200
+[APROBADA] T-15 | RNF-01 | La contraseña se guarda con hash, no en claro | GET /api/auth/perfil | esperado 200, obtenido 200
+[APROBADA] T-16 | RF-05, CA-01 | Registro válido de solicitud (sin adjunto) | POST /api/solicitudes | esperado 201, obtenido 201
+[APROBADA] T-17 | RN-06 | Servicio que exige adjunto, sin archivo (no se guarda nada) | POST /api/solicitudes | esperado 400, obtenido 400
+[APROBADA] T-18 | RF-06, RNF-05 | Registro con adjunto PDF (guardado con nombre aleatorio) | POST /api/solicitudes | esperado 201, obtenido 201
+[APROBADA] T-19 | RF-05, RNF-02 | Registro con asunto demasiado corto (no se guarda) | POST /api/solicitudes | esperado 422, obtenido 422
+[APROBADA] T-20 | RNF-05 | Adjunto de tipo no permitido (.exe) | POST /api/solicitudes | esperado 415, obtenido 415
+[APROBADA] T-21 | RNF-05 | Archivo .pdf cuyo contenido no es un PDF | POST /api/solicitudes | esperado 415, obtenido 415
+[APROBADA] T-22 | RNF-05 | Adjunto mayor que el máximo permitido (1 MB en la prueba) | POST /api/solicitudes | esperado 413, obtenido 413
+[APROBADA] T-23 | RNF-05 | Más archivos que el máximo permitido (6 de 5) | POST /api/solicitudes | esperado 400, obtenido 400
+[APROBADA] T-24 | RF-05 | Servicio inexistente | POST /api/solicitudes | esperado 400, obtenido 400
+[APROBADA] T-25 | RF-03, CA-01 | Crear solicitud con rol atención (no autorizado) | POST /api/solicitudes | esperado 403, obtenido 403
+[APROBADA] T-26 | RF-03 | Crear solicitud sin token | POST /api/solicitudes | esperado 401, obtenido 401
+[APROBADA] T-27 | RF-05, RNF-04 | Radicados únicos y solicitudes con su solicitante correcto | POST /api/solicitudes | esperado 201, obtenido 201
+[APROBADA] T-28 | RF-07, RF-19, CA-03 | El solicitante lista solo sus solicitudes, de más reciente a más antigua | GET /api/solicitudes | esperado 200, obtenido 200
+[APROBADA] T-29 | RF-19 | Otro solicitante solo ve la suya | GET /api/solicitudes | esperado 200, obtenido 200
+[APROBADA] T-30 | RF-09, RF-19 | El personal ve la bandeja de todos los solicitantes, ordenada por prioridad | GET /api/solicitudes | esperado 200, obtenido 200
+[APROBADA] T-31 | RF-09 | Filtro por prioridad | GET /api/solicitudes | esperado 200, obtenido 200
+[APROBADA] T-32 | RF-07 | Paginación con límite y desplazamiento | GET /api/solicitudes | esperado 200, obtenido 200
+[APROBADA] T-33 | RF-07 | Límite de página superior al máximo | GET /api/solicitudes | esperado 422, obtenido 422
+[APROBADA] T-34 | RF-07 | Filtro con un estado que no existe | GET /api/solicitudes | esperado 422, obtenido 422
+[APROBADA] T-35 | RF-03 | Listar sin token | GET /api/solicitudes | esperado 401, obtenido 401
+[APROBADA] T-36 | RF-07, CA-03 | Detalle de una solicitud propia | GET /api/solicitudes/1 | esperado 200, obtenido 200
+[APROBADA] T-37 | RF-19, RNF-02 | Detalle de una solicitud ajena responde 404, igual que una inexistente | GET /api/solicitudes/4 | esperado 404, obtenido 404
+[APROBADA] T-38 | RF-19, SUP-10 | En gestión: no la ve otro funcionario, sí el responsable y coordinación | GET /api/solicitudes/5 | esperado 404, obtenido 404
+[APROBADA] T-39 | RF-19 | El listado de otro funcionario no incluye la que está en gestión | GET /api/solicitudes | esperado 200, obtenido 200
+[APROBADA] T-40 | RF-17, RN-05, CA-04 | El solicitante no recibe las notas internas del historial | GET /api/solicitudes/5/eventos | esperado 200, obtenido 200
+[APROBADA] T-41 | RF-17, RN-05, CA-04 | El personal ve el historial completo, con las notas internas | GET /api/solicitudes/5/eventos | esperado 200, obtenido 200
+[APROBADA] T-42 | RF-19, RNF-02 | Historial de una solicitud ajena | GET /api/solicitudes/4/eventos | esperado 404, obtenido 404
+[APROBADA] T-43 | RF-06, RNF-05 | El dueño descarga su adjunto con su nombre original | GET /api/adjuntos/1 | esperado 200, obtenido 200
+[APROBADA] T-44 | RF-06, RNF-05 | El personal que ve la solicitud también descarga el adjunto | GET /api/adjuntos/1 | esperado 200, obtenido 200
+[APROBADA] T-45 | RNF-05 | Otro solicitante no puede descargar el adjunto (404) | GET /api/adjuntos/1 | esperado 404, obtenido 404
+[APROBADA] T-46 | RNF-05 | Descargar sin token | GET /api/adjuntos/1 | esperado 401, obtenido 401
+[APROBADA] T-47 | RF-10, CA-02 | El personal inicia la evaluación (recibida -> en evaluación) | PATCH /api/solicitudes/6/estado | esperado 200, obtenido 200
+[APROBADA] T-48 | RF-03, RF-10 | El solicitante intenta evaluar su solicitud (no autorizado) | PATCH /api/solicitudes/6/estado | esperado 403, obtenido 403
+[APROBADA] T-49 | RN-01 | Pedir «finalizada» por EP-09 (tiene su propio endpoint) | PATCH /api/solicitudes/6/estado | esperado 422, obtenido 422
+[APROBADA] T-50 | RN-01 | Saltar de «recibida» a «en gestión» (transición no permitida) | PATCH /api/solicitudes/7/estado | esperado 409, obtenido 409
+[APROBADA] T-51 | RN-02 | Pedir información sin indicar el motivo | PATCH /api/solicitudes/6/estado | esperado 400, obtenido 400
+[APROBADA] T-52 | RF-11, RF-17 | Pedir información (el solicitante ve el motivo en su historial) | PATCH /api/solicitudes/6/estado | esperado 200, obtenido 200
+[APROBADA] T-53 | RF-11 | Otro solicitante intenta responder la petición (404) | POST /api/solicitudes/6/informacion | esperado 404, obtenido 404
+[APROBADA] T-54 | RF-11 | Responder la petición sin texto ni archivo | POST /api/solicitudes/6/informacion | esperado 422, obtenido 422
+[APROBADA] T-55 | RF-11, CA-02 | El solicitante entrega la información (vuelve a evaluación) | POST /api/solicitudes/6/informacion | esperado 200, obtenido 200
+[APROBADA] T-56 | RN-01 | Entregar información cuando ya no se espera (409) | POST /api/solicitudes/6/informacion | esperado 409, obtenido 409
+[APROBADA] T-57 | RN-03 | Aceptar sin indicar responsable | PATCH /api/solicitudes/6/estado | esperado 400, obtenido 400
+[APROBADA] T-58 | RN-07 | Asignar como responsable a alguien que no es de atención | PATCH /api/solicitudes/6/estado | esperado 400, obtenido 400
+[APROBADA] T-59 | RF-12, RN-03, RN-08, RN-09 | Aceptar y asignar (queda en gestión con responsable y prioridad) | PATCH /api/solicitudes/6/estado | esperado 200, obtenido 200
+[APROBADA] T-60 | RN-05 | El solicitante ve la aceptación pero no la asignación ni el cambio de prioridad | GET /api/solicitudes/6/eventos | esperado 200, obtenido 200
+[APROBADA] T-61 | SUP-10 | Otro funcionario no ve la solicitud en gestión (404) | POST /api/solicitudes/6/finalizacion | esperado 404, obtenido 404
+[APROBADA] T-62 | RN-04 | Finalizar con una respuesta demasiado corta | POST /api/solicitudes/6/finalizacion | esperado 422, obtenido 422
+[APROBADA] T-63 | RNF-05 | Finalizar con un adjunto no permitido (no cambia nada) | POST /api/solicitudes/6/finalizacion | esperado 415, obtenido 415
+[APROBADA] T-64 | RF-14, RN-04, CA-05 | El responsable finaliza con respuesta y archivo | POST /api/solicitudes/6/finalizacion | esperado 200, obtenido 200
+[APROBADA] T-65 | CA-05, RNF-05 | El solicitante descarga el archivo de respuesta | GET /api/adjuntos/3 | esperado 200, obtenido 200
+[APROBADA] T-66 | RN-12 | Una solicitud finalizada ya no admite notas, prioridad ni cancelación | POST /api/solicitudes/6/notas | esperado 409, obtenido 409
+[APROBADA] T-67 | RF-13, RN-08 | Coordinación reasigna y queda registrado de quién a quién | PATCH /api/solicitudes/8/responsable | esperado 200, obtenido 200
+[APROBADA] T-68 | RN-07 | Reasignar a quien ya es el responsable | PATCH /api/solicitudes/8/responsable | esperado 400, obtenido 400
+[APROBADA] T-69 | RN-07 | Reasignar a alguien que no es de atención | PATCH /api/solicitudes/8/responsable | esperado 400, obtenido 400
+[APROBADA] T-70 | SUP-10 | El responsable anterior ya no ve ni reasigna la solicitud (404) | PATCH /api/solicitudes/8/responsable | esperado 404, obtenido 404
+[APROBADA] T-71 | RN-09, SUP-10 | Atención no ajusta la prioridad de una solicitud que no tiene asignada | PATCH /api/solicitudes/9/prioridad | esperado 403, obtenido 403
+[APROBADA] T-72 | RN-09 | Ajustar la prioridad sin motivo | PATCH /api/solicitudes/9/prioridad | esperado 422, obtenido 422
+[APROBADA] T-73 | RF-12, RN-09 | Coordinación ajusta la prioridad con motivo | PATCH /api/solicitudes/9/prioridad | esperado 200, obtenido 200
+[APROBADA] T-74 | RN-05, RF-17 | Notas: la interna no la ve el solicitante, la marcada como visible sí | POST /api/solicitudes/9/notas | esperado 201, obtenido 201
+[APROBADA] T-75 | RF-12 | Nota demasiado corta | POST /api/solicitudes/9/notas | esperado 422, obtenido 422
+[APROBADA] T-76 | RN-02 | Rechazar sin indicar el motivo | PATCH /api/solicitudes/10/estado | esperado 400, obtenido 400
+[APROBADA] T-77 | RF-10, RN-12 | Rechazar con motivo (estado final) | PATCH /api/solicitudes/10/estado | esperado 200, obtenido 200
+[APROBADA] T-78 | RN-12 | Una solicitud rechazada no puede volver a evaluarse | PATCH /api/solicitudes/10/estado | esperado 409, obtenido 409
+[APROBADA] T-79 | RF-15, RNF-02 | Otro solicitante intenta cancelar una solicitud ajena (404) | POST /api/solicitudes/11/cancelacion | esperado 404, obtenido 404
+[APROBADA] T-80 | RF-15, RN-11 | El solicitante cancela antes de la gestión | POST /api/solicitudes/11/cancelacion | esperado 200, obtenido 200
+[APROBADA] T-81 | RN-11 | Cancelar una solicitud que ya está en gestión (409) | POST /api/solicitudes/9/cancelacion | esperado 409, obtenido 409
+[APROBADA] T-82 | RF-13, RN-04 | Coordinación puede finalizar una solicitud que no tiene asignada | POST /api/solicitudes/9/finalizacion | esperado 200, obtenido 200
+[APROBADA] T-83 | RF-03 | Gestionar sin token | PATCH /api/solicitudes/7/estado | esperado 401, obtenido 401
+
+Resultado: 83 de 83 pruebas aprobadas
