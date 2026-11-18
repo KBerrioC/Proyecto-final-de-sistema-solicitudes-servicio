@@ -9,13 +9,18 @@ Cada línea muestra: estado, identificador, requisito, descripción, método y r
 código HTTP esperado y obtenido.
 """
 import os
+import re
+import shutil
 import sys
 import warnings
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 sys.path.insert(0, os.getcwd())
 os.environ["DATABASE_URL"] = "sqlite:///./pruebas.db"
 os.environ["SECRET_KEY"] = "clave-solo-para-las-pruebas-funcionales-0123456789"
+os.environ["UPLOAD_DIR"] = "uploads/pruebas_tmp"
+os.environ["MAX_UPLOAD_MB"] = "1"
 sys.stdout.reconfigure(encoding="utf-8")
 warnings.filterwarnings("ignore", message=".*httpx.*")
 
@@ -25,7 +30,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from backend.config import configuracion  # noqa: E402
 from backend.database import SessionLocal, engine  # noqa: E402
 from backend.main import app  # noqa: E402
-from backend.models import Usuario  # noqa: E402
+from backend.models import Adjunto, Evento, Servicio, Solicitud, Usuario  # noqa: E402
 from backend.seed import CONTRASENA_DEMO, SERVICIOS  # noqa: E402
 
 resultados = []
@@ -128,10 +133,102 @@ try:
             guardada_con_hash = usuario.password_hash.startswith("$2") and usuario.password_hash != "ClaveSegura1"
         r = c.get("/api/auth/perfil", headers=encabezado(token_ana))
         probar("T-15", "RNF-01", "La contraseña se guarda con hash, no en claro", r, 200, guardada_con_hash)
+
+        # --- Creación de solicitudes (EP-06)
+        PDF = b"%PDF-1.4\n" + b"contenido de prueba\n" * 20
+        carpeta = Path(configuracion.upload_dir)
+
+        def archivos_en_disco():
+            return len([f for f in carpeta.glob("*") if f.is_file()]) if carpeta.exists() else 0
+
+        def total_solicitudes():
+            with SessionLocal() as db:
+                return db.query(Solicitud).count()
+
+        with SessionLocal() as db:
+            id_sin_adjunto = db.query(Servicio).filter_by(nombre="Atención de trámites generales").one().id
+            id_con_adjunto = db.query(Servicio).filter_by(nombre="Certificado de estudios").one().id
+        base = {"servicio_id": id_sin_adjunto, "asunto": "Orientación sobre un trámite",
+                "descripcion": "Necesito orientación sobre el trámite de matrícula."}
+        auth_ana = encabezado(token_ana)
+
+        r = c.post("/api/solicitudes", data=base, headers=auth_ana)
+        cuerpo = r.json() if r.status_code == 201 else {}
+        with SessionLocal() as db:
+            eventos = db.query(Evento).filter_by(solicitud_id=cuerpo.get("id", 0), tipo="creada").count()
+        probar("T-16", "RF-05, CA-01", "Registro válido de solicitud (sin adjunto)", r, 201,
+               cuerpo.get("estado") == "recibida" and cuerpo.get("prioridad") == "baja"
+               and bool(re.fullmatch(r"SOL-\d{4}-\d{5}", cuerpo.get("radicado", "")))
+               and cuerpo.get("solicitante", {}).get("nombre") == "Ana Pérez"
+               and cuerpo.get("adjuntos") == [] and cuerpo.get("dias_pendientes") == 0 and eventos == 1)
+        primer_id = cuerpo.get("id")
+
+        antes = total_solicitudes()
+        r = c.post("/api/solicitudes", data={**base, "servicio_id": id_con_adjunto}, headers=auth_ana)
+        probar("T-17", "RN-06", "Servicio que exige adjunto, sin archivo (no se guarda nada)", r, 400,
+               total_solicitudes() == antes)
+
+        r = c.post("/api/solicitudes", data={**base, "servicio_id": id_con_adjunto}, headers=auth_ana,
+                   files=[("archivos", ("certificado.pdf", PDF, "application/pdf"))])
+        cuerpo = r.json() if r.status_code == 201 else {}
+        with SessionLocal() as db:
+            adjunto = db.query(Adjunto).filter_by(solicitud_id=cuerpo.get("id", 0)).first()
+            guardado = bool(adjunto) and (carpeta / adjunto.nombre_almacenado).exists()
+            nombre_aleatorio = bool(adjunto) and adjunto.nombre_almacenado != "certificado.pdf"
+        probar("T-18", "RF-06, RNF-05", "Registro con adjunto PDF (guardado con nombre aleatorio)", r, 201,
+               len(cuerpo.get("adjuntos", [])) == 1
+               and cuerpo["adjuntos"][0]["nombre_original"] == "certificado.pdf"
+               and cuerpo["adjuntos"][0]["proposito"] == "solicitud" and guardado and nombre_aleatorio
+               and cuerpo.get("prioridad") == "media")
+
+        antes, discos = total_solicitudes(), archivos_en_disco()
+        r = c.post("/api/solicitudes", data={**base, "asunto": "abc"}, headers=auth_ana)
+        probar("T-19", "RF-05, RNF-02", "Registro con asunto demasiado corto (no se guarda)", r, 422,
+               total_solicitudes() == antes)
+
+        r = c.post("/api/solicitudes", data={**base, "servicio_id": id_con_adjunto}, headers=auth_ana,
+                   files=[("archivos", ("programa.exe", b"MZ" + b"0" * 50, "application/octet-stream"))])
+        probar("T-20", "RNF-05", "Adjunto de tipo no permitido (.exe)", r, 415,
+               total_solicitudes() == antes and archivos_en_disco() == discos)
+
+        r = c.post("/api/solicitudes", data={**base, "servicio_id": id_con_adjunto}, headers=auth_ana,
+                   files=[("archivos", ("falso.pdf", b"MZ" + b"0" * 50, "application/pdf"))])
+        probar("T-21", "RNF-05", "Archivo .pdf cuyo contenido no es un PDF", r, 415,
+               total_solicitudes() == antes and archivos_en_disco() == discos)
+
+        r = c.post("/api/solicitudes", data={**base, "servicio_id": id_con_adjunto}, headers=auth_ana,
+                   files=[("archivos", ("grande.pdf", b"%PDF-" + b"0" * (2 * 1024 * 1024), "application/pdf"))])
+        probar("T-22", "RNF-05", "Adjunto mayor que el máximo permitido (1 MB en la prueba)", r, 413,
+               total_solicitudes() == antes and archivos_en_disco() == discos)
+
+        seis = [("archivos", (f"d{i}.pdf", PDF, "application/pdf")) for i in range(6)]
+        r = c.post("/api/solicitudes", data={**base, "servicio_id": id_con_adjunto}, headers=auth_ana, files=seis)
+        probar("T-23", "RNF-05", "Más archivos que el máximo permitido (6 de 5)", r, 400,
+               total_solicitudes() == antes and archivos_en_disco() == discos)
+
+        r = c.post("/api/solicitudes", data={**base, "servicio_id": 999}, headers=auth_ana)
+        probar("T-24", "RF-05", "Servicio inexistente", r, 400, total_solicitudes() == antes)
+
+        r = c.post("/api/solicitudes", data=base, headers=encabezado(token_luis))
+        probar("T-25", "RF-03, CA-01", "Crear solicitud con rol atención (no autorizado)", r, 403,
+               total_solicitudes() == antes)
+
+        r = c.post("/api/solicitudes", data=base)
+        probar("T-26", "RF-03", "Crear solicitud sin token", r, 401, total_solicitudes() == antes)
+
+        r = c.post("/api/solicitudes", data=base, headers=auth_ana)
+        segundo = r.json() if r.status_code == 201 else {}
+        with SessionLocal() as db:
+            filas = db.query(Solicitud).order_by(Solicitud.id).all()
+            radicados = [f.radicado for f in filas]
+            consistentes = all(f.solicitante.correo == "ana.perez@ejemplo.edu" for f in filas)
+        probar("T-27", "RF-05, RNF-04", "Radicados únicos y solicitudes con su solicitante correcto", r, 201,
+               len(set(radicados)) == len(radicados) == 3 and consistentes and segundo.get("id") != primer_id)
 finally:
     engine.dispose()
     if os.path.exists("pruebas.db"):
         os.remove("pruebas.db")
+    shutil.rmtree(os.environ["UPLOAD_DIR"], ignore_errors=True)
 
 aprobadas = sum(resultados)
 print(f"\nResultado: {aprobadas} de {len(resultados)} pruebas aprobadas")

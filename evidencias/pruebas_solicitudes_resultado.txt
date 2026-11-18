@@ -1,0 +1,29 @@
+[APROBADA] T-01 | RF-01 | Registro v├ílido de solicitante | POST /api/auth/registro | esperado 201, obtenido 201
+[APROBADA] T-02 | RF-01, RNF-02 | Registro con contrase├▒a demasiado corta | POST /api/auth/registro | esperado 422, obtenido 422
+[APROBADA] T-03 | RF-01 | Registro con correo ya existente (sin distinguir may├║sculas) | POST /api/auth/registro | esperado 409, obtenido 409
+[APROBADA] T-04 | RF-02 | Inicio de sesi├│n v├ílido | POST /api/auth/login | esperado 200, obtenido 200
+[APROBADA] T-05 | RF-02 | Inicio de sesi├│n con contrase├▒a incorrecta | POST /api/auth/login | esperado 401, obtenido 401
+[APROBADA] T-06 | RF-02, RNF-03 | Correo inexistente: mismo error que contrase├▒a incorrecta | POST /api/auth/login | esperado 401, obtenido 401
+[APROBADA] T-07 | RF-03 | Perfil sin token | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-08 | RF-02, RF-03 | Perfil con token v├ílido | GET /api/auth/perfil | esperado 200, obtenido 200
+[APROBADA] T-09 | RNF-01 | Perfil con token manipulado | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-10 | RNF-01 | Perfil con token vencido | GET /api/auth/perfil | esperado 401, obtenido 401
+[APROBADA] T-11 | RF-04 | Cat├ílogo de servicios sin token | GET /api/servicios | esperado 401, obtenido 401
+[APROBADA] T-12 | RF-04 | Cat├ílogo de servicios con token | GET /api/servicios | esperado 200, obtenido 200
+[APROBADA] T-13 | RF-03, RF-13 | Lista de atenci├│n con rol solicitante (no autorizado) | GET /api/usuarios/atencion | esperado 403, obtenido 403
+[APROBADA] T-14 | RF-03, RF-13 | Lista de atenci├│n con rol atenci├│n | GET /api/usuarios/atencion | esperado 200, obtenido 200
+[APROBADA] T-15 | RNF-01 | La contrase├▒a se guarda con hash, no en claro | GET /api/auth/perfil | esperado 200, obtenido 200
+[APROBADA] T-16 | RF-05, CA-01 | Registro v├ílido de solicitud (sin adjunto) | POST /api/solicitudes | esperado 201, obtenido 201
+[APROBADA] T-17 | RN-06 | Servicio que exige adjunto, sin archivo (no se guarda nada) | POST /api/solicitudes | esperado 400, obtenido 400
+[APROBADA] T-18 | RF-06, RNF-05 | Registro con adjunto PDF (guardado con nombre aleatorio) | POST /api/solicitudes | esperado 201, obtenido 201
+[APROBADA] T-19 | RF-05, RNF-02 | Registro con asunto demasiado corto (no se guarda) | POST /api/solicitudes | esperado 422, obtenido 422
+[APROBADA] T-20 | RNF-05 | Adjunto de tipo no permitido (.exe) | POST /api/solicitudes | esperado 415, obtenido 415
+[APROBADA] T-21 | RNF-05 | Archivo .pdf cuyo contenido no es un PDF | POST /api/solicitudes | esperado 415, obtenido 415
+[APROBADA] T-22 | RNF-05 | Adjunto mayor que el m├íximo permitido (1 MB en la prueba) | POST /api/solicitudes | esperado 413, obtenido 413
+[APROBADA] T-23 | RNF-05 | M├ís archivos que el m├íximo permitido (6 de 5) | POST /api/solicitudes | esperado 400, obtenido 400
+[APROBADA] T-24 | RF-05 | Servicio inexistente | POST /api/solicitudes | esperado 400, obtenido 400
+[APROBADA] T-25 | RF-03, CA-01 | Crear solicitud con rol atenci├│n (no autorizado) | POST /api/solicitudes | esperado 403, obtenido 403
+[APROBADA] T-26 | RF-03 | Crear solicitud sin token | POST /api/solicitudes | esperado 401, obtenido 401
+[APROBADA] T-27 | RF-05, RNF-04 | Radicados ├║nicos y solicitudes con su solicitante correcto | POST /api/solicitudes | esperado 201, obtenido 201
+
+Resultado: 27 de 27 pruebas aprobadas

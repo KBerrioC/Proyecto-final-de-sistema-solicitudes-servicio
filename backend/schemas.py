@@ -1,4 +1,5 @@
 """Entradas y salidas de la API (Pydantic)."""
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator
@@ -61,3 +62,46 @@ class AtencionSalida(BaseModel):
     id: int
     nombre: str
     correo: str
+
+
+class PersonaResumen(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+
+
+class ServicioResumen(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+
+
+class AdjuntoSalida(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre_original: str
+    proposito: str
+    tipo_mime: str
+    tamano_bytes: int
+
+
+class SolicitudDetalle(BaseModel):
+    id: int
+    radicado: str
+    servicio: ServicioResumen
+    asunto: str
+    descripcion: str
+    estado: str
+    prioridad: str
+    solicitante: PersonaResumen
+    responsable: PersonaResumen | None
+    respuesta: str | None
+    adjuntos: list[AdjuntoSalida]
+    creado_en: datetime
+    actualizado_en: datetime
+    finalizado_en: datetime | None
+    dias_pendientes: int | None
+    dias_atencion: int | None
