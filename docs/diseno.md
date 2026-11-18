@@ -3,17 +3,17 @@
 **Autor:** Berrio (GitHub: KBerrioC)
 **Insumos:** [requisitos.md](requisitos.md) y [entrevista.md](entrevista.md)
 
-> **Estado:** en elaboración. Este documento se completa por partes; los apartados marcados como _Pendiente_ se añaden en pull requests posteriores.
+> **Estado:** completo. Se actualiza si cambian las decisiones durante el desarrollo, y cada cambio queda registrado en su pull request.
 
 ## Contenido
 
 1. [Decisiones técnicas](#1-decisiones-técnicas)
-2. [Arquitectura](#2-arquitectura) _(pendiente)_
+2. [Arquitectura](#2-arquitectura)
 3. [Modelo de datos](#3-modelo-de-datos)
 4. [Especificación de la API](#4-especificación-de-la-api)
 5. [Reglas de negocio y control de acceso](#5-reglas-de-negocio-y-control-de-acceso)
-6. [Interfaces y recorridos de los actores](#6-interfaces-y-recorridos-de-los-actores) _(pendiente)_
-7. [Correspondencia con los requisitos](#7-correspondencia-con-los-requisitos) _(pendiente)_
+6. [Interfaces y recorridos de los actores](#6-interfaces-y-recorridos-de-los-actores)
+7. [Correspondencia con los requisitos](#7-correspondencia-con-los-requisitos)
 
 ## 1. Decisiones técnicas
 
@@ -27,7 +27,91 @@
 
 ## 2. Arquitectura
 
-_Pendiente._ Incluirá el diagrama de componentes (frontend, API REST, base de datos y almacenamiento de adjuntos) y las responsabilidades de cada uno.
+La aplicación es cliente-servidor y se ejecuta en un solo proceso: FastAPI expone la API REST y también entrega los archivos estáticos del frontend. Los datos se guardan en SQLite y los adjuntos, en disco.
+
+### 2.1 Diagrama de componentes
+
+```mermaid
+flowchart LR
+    subgraph Cliente
+        N["Navegador<br/>HTML, CSS y JavaScript"]
+    end
+    subgraph Servidor["Servidor FastAPI (un solo proceso)"]
+        E["Archivos estáticos<br/>carpeta frontend/"]
+        R["Routers REST<br/>rutas /api"]
+        AU["Autenticación<br/>hash, JWT y roles"]
+        V["Servicios de negocio<br/>reglas y transiciones"]
+    end
+    subgraph Almacenamiento
+        DB[("SQLite<br/>app.db")]
+        FS[("Carpeta<br/>uploads/")]
+    end
+    N -- "GET páginas" --> E
+    N -- "fetch con JSON y Bearer" --> R
+    R --> AU
+    R --> V
+    V --> DB
+    V --> FS
+```
+
+### 2.2 Responsabilidades
+
+| Componente | Responsabilidad |
+|---|---|
+| Frontend (HTML, CSS y JavaScript) | Presenta la información, recibe las acciones del usuario, valida datos básicos y consume la API con `fetch`. Guarda el token de sesión en `sessionStorage`. Muestra los datos con `textContent` para evitar inyección de código. |
+| Routers REST | Reciben las solicitudes HTTP, validan el formato con Pydantic, aplican el control de acceso por rol y devuelven los códigos de respuesta. No contienen reglas de negocio. |
+| Autenticación | Genera y verifica los JWT, comprueba el hash de las contraseñas y entrega el usuario autenticado a cada endpoint. |
+| Servicios de negocio | Aplican las reglas (RN-01 a RN-12): transiciones, responsables, prioridades, cancelación y creación de eventos en la misma transacción. |
+| SQLite y SQLAlchemy | Persisten usuarios, servicios, solicitudes, eventos y datos de los adjuntos, con claves foráneas activas. |
+| Carpeta `uploads/` | Guarda los archivos con un nombre aleatorio. Está fuera del control de versiones y solo se accede por EP-17. |
+
+### 2.3 Organización del código
+
+La guía no impone una estructura de carpetas. Esta separa el acceso HTTP, las reglas de negocio y los datos, parte de la organización vista en la práctica de Clase 7 y permite probar y explicar cada capa por separado.
+
+```
+backend/
+  main.py            Crea la aplicación, registra los routers y sirve el frontend
+  config.py          Lee las variables de entorno (.env)
+  database.py        Conexión, sesión y activación de claves foráneas
+  models.py          Tablas (SQLAlchemy)
+  schemas.py         Entradas y salidas (Pydantic)
+  auth.py            Hash, JWT y dependencias de rol
+  routers/           auth.py, servicios.py, solicitudes.py, adjuntos.py, resumen.py
+  services/          solicitudes.py (reglas y transiciones), archivos.py (adjuntos)
+  seed.py            Datos ficticios iniciales (usuarios y servicios)
+frontend/
+  index.html         Inicio de sesión y registro
+  mis-solicitudes.html, nueva-solicitud.html, solicitud.html, bandeja.html, resumen.html
+  css/estilos.css
+  js/api.js          Cliente de la API (token y manejo de errores)
+  js/…               Un archivo por pantalla
+uploads/             Adjuntos (ignorada por Git)
+requirements.txt
+```
+
+### 2.4 Recorrido de una petición
+
+Ejemplo con la creación de una solicitud (EP-06):
+
+```mermaid
+sequenceDiagram
+    actor S as Solicitante
+    participant F as Frontend
+    participant A as API (router y servicio)
+    participant D as SQLite
+    participant U as Disco (uploads)
+    S->>F: Llena el formulario y adjunta archivos
+    F->>A: POST /api/solicitudes (multipart, Bearer)
+    A->>A: Valida token, rol, datos y adjuntos
+    A->>D: Inserta la solicitud y el evento creada
+    A->>U: Guarda los archivos con nombre aleatorio
+    A->>D: Inserta los datos de los adjuntos
+    A-->>F: 201 con el detalle de la solicitud
+    F-->>S: Muestra el radicado y el estado Recibida
+```
+
+Si la base de datos falla, la transacción se revierte y se eliminan los archivos ya guardados, para no dejar adjuntos huérfanos.
 
 ## 3. Modelo de datos
 
@@ -390,8 +474,234 @@ Cada acción que cambia una solicitud crea un evento en la misma transacción, d
 
 ## 6. Interfaces y recorridos de los actores
 
-_Pendiente._ Incluirá los recorridos principales de solicitante, personal de atención y coordinación, y los prototipos de las pantallas.
+### 6.1 Pantallas
+
+| ID | Pantalla | Archivo | Quién | Endpoints que usa |
+|---|---|---|---|---|
+| PAN-01 | Inicio de sesión y registro | `index.html` | Público | EP-01, EP-02, EP-03 |
+| PAN-02 | Mis solicitudes | `mis-solicitudes.html` | Solicitante | EP-07 |
+| PAN-03 | Nueva solicitud | `nueva-solicitud.html` | Solicitante | EP-04, EP-06 |
+| PAN-04 | Detalle de la solicitud | `solicitud.html` | Todos, con acciones según rol y estado | EP-08, EP-16, EP-17 y las acciones EP-09 a EP-15 |
+| PAN-05 | Bandeja de gestión | `bandeja.html` | Atención y coordinación | EP-05, EP-07 |
+| PAN-06 | Resumen del proceso | `resumen.html` | Coordinación | EP-18 |
+
+Tras iniciar sesión, el frontend lee el rol con EP-03 y lleva a cada actor a su pantalla de inicio: PAN-02 al solicitante, PAN-05 al personal de atención y PAN-06 a coordinación.
+
+### 6.2 Flujo de estados
+
+```mermaid
+stateDiagram-v2
+    [*] --> Recibida
+    Recibida --> EnEvaluacion: iniciar evaluación
+    Recibida --> Cancelada: solicitante cancela
+    EnEvaluacion --> EnGestion: aceptar y asignar
+    EnEvaluacion --> PendienteInformacion: solicitar información
+    EnEvaluacion --> Rechazada: rechazar con motivo
+    EnEvaluacion --> Cancelada: solicitante cancela
+    PendienteInformacion --> EnEvaluacion: solicitante responde
+    PendienteInformacion --> Cancelada: solicitante cancela
+    EnGestion --> Finalizada: finalizar con respuesta
+    Finalizada --> [*]
+    Rechazada --> [*]
+    Cancelada --> [*]
+```
+
+### 6.3 Recorridos principales
+
+**Solicitante**
+1. Se registra (EP-01) e inicia sesión (EP-02).
+2. Elige un servicio, escribe el asunto y la descripción, y adjunta los documentos si el servicio los exige (PAN-03, EP-06).
+3. Consulta sus solicitudes y su estado (PAN-02).
+4. Abre el detalle para ver el historial, y si le piden información, responde con texto o un archivo (PAN-04, EP-14). Puede cancelar mientras no esté en gestión (EP-15).
+5. Cuando se finaliza, ve la respuesta y descarga el adjunto si lo hay (PAN-04, EP-08 y EP-17).
+
+**Personal de atención**
+1. Inicia sesión y ve la bandeja, ordenada por prioridad y antigüedad (PAN-05, EP-07).
+2. Abre una solicitud nueva e inicia la evaluación (EP-09).
+3. Resuelve la evaluación: acepta eligiendo responsable y prioridad, pide información con un motivo, o rechaza con un motivo (EP-05 y EP-09).
+4. Gestiona las que tiene asignadas: registra notas, ajusta la prioridad o reasigna (EP-11 a EP-13).
+5. Finaliza con una respuesta para el solicitante (EP-10).
+
+**Coordinación**
+1. Inicia sesión y ve el resumen del proceso (PAN-06, EP-18).
+2. Desde la bandeja abre cualquier solicitud para consultar su historial y las notas internas (EP-07, EP-08 y EP-16).
+3. Cuando hace falta, interviene: reasigna el responsable, ajusta la prioridad o registra notas (EP-11 a EP-13).
+
+### 6.4 Acciones visibles en el detalle (PAN-04)
+
+El frontend muestra solo las acciones que el rol y el estado permiten. El servidor las valida de todos modos.
+
+| Rol | Estado de la solicitud | Acciones |
+|---|---|---|
+| Solicitante | `recibida`, `en_evaluacion` | Cancelar |
+| Solicitante | `pendiente_informacion` | Responder información, cancelar |
+| Atención y coordinación | `recibida` | Iniciar evaluación |
+| Atención y coordinación | `en_evaluacion` | Aceptar y asignar, solicitar información, rechazar |
+| Atención (si es responsable) y coordinación | `en_gestion` | Registrar nota, ajustar prioridad, reasignar, finalizar |
+| Todos | `finalizada`, `rechazada`, `cancelada` | Solo lectura |
+
+### 6.5 Prototipos de baja fidelidad
+
+**PAN-01 Inicio de sesión y registro**
+
+```
++------------------------------------------------------+
+|        Sistema de solicitudes de servicio            |
+|                                                      |
+|     [ Iniciar sesión ]   [ Registrarse ]             |
+|                                                      |
+|     Correo       [____________________________]      |
+|     Contraseña   [____________________________]      |
+|                                                      |
+|                 [ Entrar ]                           |
+|                                                      |
+|  Registro: nombre, correo, tipo de solicitante       |
+|  (estudiante, docente, egresado o externo) y         |
+|  contraseña.                                         |
++------------------------------------------------------+
+```
+
+**PAN-02 Mis solicitudes**
+
+```
++------------------------------------------------------------------+
+| Mis solicitudes   (Ana Pérez)    [ + Nueva solicitud ]  [Salir]  |
+|------------------------------------------------------------------|
+| Estado: [ Todos v ]                                              |
+|                                                                  |
+| Radicado         Servicio              Asunto       Estado       |
+| SOL-2026-00012   Certificado estudios  Beca         En gestión   |
+| SOL-2026-00009   Actualización datos   Cambio dir.  Finalizada   |
+| SOL-2026-00005   Constancia            Visa         Pendiente de |
+|                                                     información  |
++------------------------------------------------------------------+
+```
+
+**PAN-03 Nueva solicitud**
+
+```
++------------------------------------------------------+
+| Nueva solicitud                                      |
+|                                                      |
+| Servicio     [ Certificado de estudios        v ]    |
+|              (!) Este servicio requiere adjunto      |
+| Asunto       [____________________________________]  |
+| Descripción  [____________________________________]  |
+|              [____________________________________]  |
+| Adjuntos     [ Elegir archivos ]  documento.pdf (x)  |
+|              PDF, JPG o PNG, máximo 5 MB             |
+|                                                      |
+|              [ Enviar solicitud ]   [ Cancelar ]     |
++------------------------------------------------------+
+```
+
+**PAN-04 Detalle de la solicitud (vista del personal en estado «En evaluación»)**
+
+```
++------------------------------------------------------------------+
+| SOL-2026-00012   Estado: En evaluación   Prioridad: Media        |
+| Servicio: Certificado de estudios        Días pendientes: 2      |
+| Solicitante: Ana Pérez (estudiante)      Responsable: sin asignar|
+|------------------------------------------------------------------|
+| Asunto: Certificado para trámite de beca                         |
+| Descripción: Necesito un certificado de estudios del último...   |
+| Adjuntos: documento.pdf [descargar]                              |
+| Respuesta: (aún no hay)                                          |
+|------------------------------------------------------------------|
+| Acciones:  [ Aceptar y asignar ] [ Pedir información ] [Rechazar]|
+|------------------------------------------------------------------|
+| Historial                                                        |
+| 17/11 09:30  Creada por Ana Pérez                                |
+| 17/11 10:10  Evaluación iniciada por Luis Gómez                  |
+| 17/11 10:15  Nota interna: falta verificar matrícula   [interna] |
++------------------------------------------------------------------+
+```
+
+**PAN-05 Bandeja de gestión**
+
+```
++------------------------------------------------------------------+
+| Bandeja de gestión   (Luis Gómez - Atención)             [Salir] |
+|------------------------------------------------------------------|
+| Estado [Todos v] Servicio [Todos v] Prioridad [Todas v]          |
+|                                                                  |
+| Prior.  Radicado         Asunto          Estado       Resp.  Días|
+| Alta    SOL-2026-00004   Actualización   En gestión   Luis    11 |
+| Alta    SOL-2026-00012   Beca            En evaluac.  -        2 |
+| Media   SOL-2026-00010   Constancia      Recibida     -        1 |
+|                                         [ Anterior ] [ Siguiente]|
++------------------------------------------------------------------+
+```
+
+**PAN-06 Resumen del proceso**
+
+```
++------------------------------------------------------------------+
+| Resumen del proceso   (Coordinación)                     [Salir] |
+|------------------------------------------------------------------|
+| Desde [____/__/__]  Hasta [____/__/__]   [ Consultar ]           |
+|                                                                  |
+| Total: 48    Tiempo promedio de atención: 3,4 días               |
+|                                                                  |
+| Por estado           Por servicio           Por responsable      |
+| Recibida        5    Certificado est.  21   Luis Gómez        9  |
+| En evaluación   4    Actualización     12   María Ríos        7  |
+| En gestión     12    Constancia         8                        |
+| Finalizada     20                                                |
+|                                                                  |
+| Pendientes más antiguas                                          |
+| SOL-2026-00004  Actualización  En gestión  Luis Gómez  11 días   |
++------------------------------------------------------------------+
+```
 
 ## 7. Correspondencia con los requisitos
 
-_Pendiente._ Tabla que relaciona cada decisión de diseño con los requisitos de [requisitos.md](requisitos.md).
+### 7.1 Condiciones obligatorias
+
+| Condición | Endpoints | Pantallas | Tablas |
+|---|---|---|---|
+| CA-01 | EP-04, EP-06 | PAN-03 | `solicitudes`, `servicios`, `adjuntos`, `eventos` |
+| CA-02 | EP-09, EP-10, EP-11, EP-12, EP-13 | PAN-04 | `solicitudes`, `eventos` |
+| CA-03 | EP-07, EP-08 | PAN-02, PAN-04 | `solicitudes` |
+| CA-04 | EP-16 | PAN-04 | `eventos` |
+| CA-05 | EP-08, EP-10, EP-17 | PAN-04 | `solicitudes`, `adjuntos` |
+| CA-06 | EP-18 | PAN-06 | `solicitudes`, `servicios`, `usuarios` |
+
+### 7.2 Requisitos funcionales
+
+| Requisito | Endpoints | Pantallas | Tablas |
+|---|---|---|---|
+| RF-01 | EP-01 | PAN-01 | `usuarios` |
+| RF-02 | EP-02, EP-03 | PAN-01 | `usuarios` |
+| RF-03 | Dependencias de rol (sección 5.1) | Todas | `usuarios` |
+| RF-04 | EP-04 | PAN-03 | `servicios` |
+| RF-05 | EP-06 | PAN-03 | `solicitudes`, `eventos` |
+| RF-06 | EP-06, EP-14, EP-17 | PAN-03, PAN-04 | `adjuntos` |
+| RF-07 | EP-07, EP-08 | PAN-02, PAN-04 | `solicitudes` |
+| RF-08 | EP-15 | PAN-04 | `solicitudes`, `eventos` |
+| RF-09 | EP-07 | PAN-05 | `solicitudes` |
+| RF-10 | EP-09 | PAN-04, PAN-05 | `solicitudes`, `eventos` |
+| RF-11 | EP-05, EP-09 | PAN-04 | `solicitudes`, `eventos` |
+| RF-12 | EP-14 | PAN-04 | `solicitudes`, `adjuntos`, `eventos` |
+| RF-13 | EP-05, EP-09, EP-11 | PAN-04 | `solicitudes`, `eventos` |
+| RF-14 | EP-12 | PAN-04 | `solicitudes`, `eventos` |
+| RF-15 | EP-13 | PAN-04 | `eventos` |
+| RF-16 | EP-10, EP-17 | PAN-04 | `solicitudes`, `adjuntos`, `eventos` |
+| RF-17 | EP-16 | PAN-04 | `eventos` |
+| RF-18 | EP-18 | PAN-06 | `solicitudes`, `servicios`, `usuarios` |
+| RF-19 | EP-07, EP-08 | PAN-02, PAN-04, PAN-05 | `solicitudes` |
+
+### 7.3 Requisitos no funcionales
+
+| Requisito | Dónde se atiende en el diseño |
+|---|---|
+| RNF-01 | Hash y JWT en `auth.py` (sección 2.2); secretos en `.env` |
+| RNF-02 | Validación con Pydantic en los routers y reglas en los servicios (secciones 4.4 y 5.4) |
+| RNF-03 | Tabla de códigos de error (sección 4.3) |
+| RNF-04 | Claves foráneas y restricciones `CHECK` (sección 3.3); tabla de transiciones (sección 5.5) |
+| RNF-05 | EP-06, EP-14, EP-10 y EP-17; carpeta `uploads/` fuera de Git (secciones 2.2 y 4.4) |
+| RNF-06 | `seed.py` con datos ficticios (sección 2.3) |
+| RNF-07 | `requirements.txt`, `.env.example` y README (sección 2.3) |
+| RNF-08 | Documentación interactiva en `/docs` (sección 4.1) |
+| RNF-09 | Solo GET, POST y PATCH; sin DELETE (secciones 4.1 y 4.2) |
+| RNF-10 | Prototipos y recorridos (secciones 6.3 a 6.5) |
