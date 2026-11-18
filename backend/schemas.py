@@ -105,3 +105,43 @@ class SolicitudDetalle(BaseModel):
     finalizado_en: datetime | None
     dias_pendientes: int | None
     dias_atencion: int | None
+
+
+class SolicitudItem(BaseModel):
+    """Fila del listado (EP-07). `solicitante` solo se incluye para el personal."""
+
+    id: int
+    radicado: str
+    asunto: str
+    servicio: ServicioResumen
+    estado: str
+    prioridad: str
+    solicitante: PersonaResumen | None = None
+    responsable: PersonaResumen | None
+    creado_en: datetime
+    dias_pendientes: int | None
+
+
+class SolicitudLista(BaseModel):
+    total: int
+    items: list[SolicitudItem]
+
+
+class AutorEvento(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    nombre: str
+    rol: str
+
+
+class EventoSalida(BaseModel):
+    """Evento del historial (EP-16). `visible_solicitante` solo se incluye para el personal."""
+
+    id: int
+    tipo: str
+    autor: AutorEvento
+    estado_anterior: str | None
+    estado_nuevo: str | None
+    detalle: str | None
+    creado_en: datetime
+    visible_solicitante: bool | None = None
