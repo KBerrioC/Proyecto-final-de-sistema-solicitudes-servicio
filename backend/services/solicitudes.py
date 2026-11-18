@@ -198,23 +198,26 @@ def listar_solicitudes(
     return total, items
 
 
+def evento_salida(e: Evento, personal: bool) -> EventoSalida:
+    datos = dict(
+        id=e.id,
+        tipo=e.tipo,
+        autor=AutorEvento.model_validate(e.autor),
+        estado_anterior=e.estado_anterior,
+        estado_nuevo=e.estado_nuevo,
+        detalle=e.detalle,
+        creado_en=e.creado_en,
+    )
+    if personal:
+        datos["visible_solicitante"] = e.visible_solicitante
+    return EventoSalida(**datos)
+
+
 def listar_eventos(solicitud: Solicitud, usuario: Usuario) -> list[EventoSalida]:
     """EP-16: historial. El solicitante no recibe los eventos internos (RN-05)."""
     personal = es_personal(usuario)
-    salida = []
-    for e in solicitud.eventos:
-        if not personal and not e.visible_solicitante:
-            continue
-        datos = dict(
-            id=e.id,
-            tipo=e.tipo,
-            autor=AutorEvento.model_validate(e.autor),
-            estado_anterior=e.estado_anterior,
-            estado_nuevo=e.estado_nuevo,
-            detalle=e.detalle,
-            creado_en=e.creado_en,
-        )
-        if personal:
-            datos["visible_solicitante"] = e.visible_solicitante
-        salida.append(EventoSalida(**datos))
-    return salida
+    return [
+        evento_salida(e, personal)
+        for e in solicitud.eventos
+        if personal or e.visible_solicitante
+    ]

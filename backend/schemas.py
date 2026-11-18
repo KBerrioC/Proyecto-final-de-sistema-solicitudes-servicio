@@ -145,3 +145,43 @@ class EventoSalida(BaseModel):
     detalle: str | None
     creado_en: datetime
     visible_solicitante: bool | None = None
+
+
+Prioridad = Literal["alta", "media", "baja"]
+Texto3 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=1000)]
+
+
+class EstadoEntrada(BaseModel):
+    """EP-09. Solo los estados del flujo de evaluación; los demás tienen su propio endpoint."""
+
+    estado: Literal["en_evaluacion", "en_gestion", "pendiente_informacion", "rechazada"]
+    motivo: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+    responsable_id: int | None = None
+    prioridad: Prioridad | None = None
+
+
+class ResponsableEntrada(BaseModel):
+    """EP-11."""
+
+    responsable_id: int
+    motivo: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class PrioridadEntrada(BaseModel):
+    """EP-12. El motivo es obligatorio (RN-09)."""
+
+    prioridad: Prioridad
+    motivo: Texto3
+
+
+class NotaEntrada(BaseModel):
+    """EP-13."""
+
+    texto: Texto3
+    visible_solicitante: bool = False
+
+
+class CancelacionEntrada(BaseModel):
+    """EP-15."""
+
+    motivo: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
