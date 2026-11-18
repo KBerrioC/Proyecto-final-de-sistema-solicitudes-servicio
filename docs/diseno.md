@@ -264,6 +264,7 @@ erDiagram
 | EP-16 | GET | `/api/solicitudes/{id}/eventos` | Cualquiera | 200 | 401, 404 | RF-17 |
 | EP-17 | GET | `/api/adjuntos/{id}` | Cualquiera autorizado | 200 | 401, 404 | RF-06, RNF-05 |
 | EP-18 | GET | `/api/resumen` | Coordinación | 200 | 401, 403, 422 | RF-18 |
+| EP-19 | GET | `/api/salud` | Público | 200 | 500 | RNF-07 |
 
 ### 4.3 Códigos de error
 
@@ -302,7 +303,7 @@ erDiagram
 
 **EP-06 `POST /api/solicitudes`** – Crea una solicitud (CA-01).
 - Entrada (`multipart/form-data`): `servicio_id`, `asunto` (5 a 150 caracteres), `descripcion` (10 a 2000 caracteres) y `archivos` (cero o más).
-- Reglas: el servicio debe existir y estar activo. Si el servicio requiere adjunto y no llega ningún archivo, se responde 400 y no se guarda nada (RN-06). Cada archivo debe ser PDF, JPG o PNG y no superar el máximo (413 y 415).
+- Reglas: el servicio debe existir y estar activo. Si el servicio requiere adjunto y no llega ningún archivo, se responde 400 y no se guarda nada (RN-06). Cada archivo debe ser PDF, JPG o PNG, con contenido que corresponda a su extensión, y no superar el máximo (413 y 415). No se admiten más de 5 archivos por solicitud (400) ni archivos vacíos (422).
 - Efecto: la solicitud queda en `recibida`, con la prioridad por defecto del servicio, un radicado nuevo y el evento `creada`.
 - Salida 201: el detalle de la solicitud (ver EP-08).
 
@@ -415,6 +416,9 @@ erDiagram
 
 - `por_responsable` cuenta las solicitudes que tienen responsable asignado. `tiempo_promedio_atencion_dias` se calcula con las finalizadas. `pendientes_mas_antiguas` lista las 10 solicitudes no finalizadas con más días pendientes (RN-10, E-08).
 
+**EP-19 `GET /api/salud`** – Comprueba que el servidor responde y que la base de datos es accesible. No requiere sesión.
+- Salida 200: `{ "estado": "ok", "base_de_datos": "ok" }`.
+
 ## 5. Reglas de negocio y control de acceso
 
 ### 5.1 Autenticación y autorización
@@ -432,6 +436,8 @@ erDiagram
 | Coordinación | Todas |
 
 Si una solicitud existe pero el usuario no puede verla, la API responde 404, igual que si no existiera. Así un solicitante no puede deducir qué números de solicitud hay en el sistema (E-06).
+
+Consecuencia verificada en las pruebas: quien asigna una solicitud a otra persona, o la rechaza sin tenerla asignada, deja de verla, salvo coordinación. La interfaz lo lleva entonces a la bandeja con un aviso de que la acción quedó registrada.
 
 ### 5.3 Permisos de gestión sobre una solicitud
 
