@@ -224,6 +224,125 @@ try:
             consistentes = all(f.solicitante.correo == "ana.perez@ejemplo.edu" for f in filas)
         probar("T-27", "RF-05, RNF-04", "Radicados únicos y solicitudes con su solicitante correcto", r, 201,
                len(set(radicados)) == len(radicados) == 3 and consistentes and segundo.get("id") != primer_id)
+        # --- Consulta de solicitudes (EP-07, EP-08, EP-16 y EP-17)
+        from backend.models import Evento as Ev
+
+        token_carlos = iniciar_sesion(c, "carlos.ruiz@ejemplo.edu").json()["access_token"]
+        token_maria = iniciar_sesion(c, "maria.rios@ejemplo.edu").json()["access_token"]
+        token_coord = iniciar_sesion(c, "coordinacion@ejemplo.edu").json()["access_token"]
+        r = c.post("/api/solicitudes", data={**base, "asunto": "Consulta de Carlos sobre un trámite"},
+                   headers=encabezado(token_carlos))
+        id_carlos = r.json()["id"]
+
+        with SessionLocal() as db:
+            ana = db.query(Usuario).filter_by(correo="ana.perez@ejemplo.edu").one()
+            luis = db.query(Usuario).filter_by(correo="luis.gomez@ejemplo.edu").one()
+            ids_ana = [s.id for s in db.query(Solicitud).filter_by(solicitante_id=ana.id).order_by(Solicitud.id)]
+            id_adjunto = db.query(Adjunto).first().id
+            id_solicitud_adjunto = db.query(Adjunto).first().solicitud_id
+
+        r = c.get("/api/solicitudes", headers=auth_ana)
+        cuerpo = r.json() if r.status_code == 200 else {}
+        ids = [i["id"] for i in cuerpo.get("items", [])]
+        probar("T-28", "RF-07, RF-19, CA-03", "El solicitante lista solo sus solicitudes, de más reciente a más antigua", r, 200,
+               cuerpo.get("total") == len(ids_ana) and ids == sorted(ids_ana, reverse=True)
+               and all("solicitante" not in i for i in cuerpo["items"]))
+
+        r = c.get("/api/solicitudes", headers=encabezado(token_carlos))
+        cuerpo = r.json() if r.status_code == 200 else {}
+        probar("T-29", "RF-19", "Otro solicitante solo ve la suya", r, 200,
+               cuerpo.get("total") == 1 and cuerpo["items"][0]["id"] == id_carlos)
+
+        r = c.get("/api/solicitudes", headers=encabezado(token_luis))
+        cuerpo = r.json() if r.status_code == 200 else {}
+        rango = {"alta": 0, "media": 1, "baja": 2}
+        prioridades = [rango[i["prioridad"]] for i in cuerpo.get("items", [])]
+        probar("T-30", "RF-09, RF-19", "El personal ve la bandeja de todos los solicitantes, ordenada por prioridad", r, 200,
+               cuerpo.get("total") == len(ids_ana) + 1 and prioridades == sorted(prioridades)
+               and all("solicitante" in i for i in cuerpo["items"]))
+
+        r = c.get("/api/solicitudes", params={"prioridad": "media"}, headers=encabezado(token_luis))
+        cuerpo = r.json() if r.status_code == 200 else {}
+        probar("T-31", "RF-09", "Filtro por prioridad", r, 200,
+               cuerpo.get("total", 0) >= 1 and all(i["prioridad"] == "media" for i in cuerpo["items"]))
+
+        r = c.get("/api/solicitudes", params={"limite": 2, "desplazamiento": 1}, headers=encabezado(token_luis))
+        cuerpo = r.json() if r.status_code == 200 else {}
+        probar("T-32", "RF-07", "Paginación con límite y desplazamiento", r, 200,
+               len(cuerpo.get("items", [])) == 2 and cuerpo.get("total") == len(ids_ana) + 1)
+
+        r = c.get("/api/solicitudes", params={"limite": 101}, headers=auth_ana)
+        probar("T-33", "RF-07", "Límite de página superior al máximo", r, 422)
+
+        r = c.get("/api/solicitudes", params={"estado": "inventado"}, headers=auth_ana)
+        probar("T-34", "RF-07", "Filtro con un estado que no existe", r, 422)
+
+        r = c.get("/api/solicitudes")
+        probar("T-35", "RF-03", "Listar sin token", r, 401)
+
+        r = c.get(f"/api/solicitudes/{ids_ana[0]}", headers=auth_ana)
+        cuerpo = r.json() if r.status_code == 200 else {}
+        probar("T-36", "RF-07, CA-03", "Detalle de una solicitud propia", r, 200,
+               cuerpo.get("id") == ids_ana[0] and cuerpo.get("estado") == "recibida"
+               and cuerpo.get("solicitante", {}).get("nombre") == "Ana Pérez")
+
+        r = c.get(f"/api/solicitudes/{id_carlos}", headers=auth_ana)
+        r2 = c.get("/api/solicitudes/99999", headers=auth_ana)
+        probar("T-37", "RF-19, RNF-02", "Detalle de una solicitud ajena responde 404, igual que una inexistente", r, 404,
+               r2.status_code == 404 and r.json() == r2.json())
+
+        # Una solicitud en gestión asignada a Luis, con una nota interna.
+        with SessionLocal() as db:
+            gestion = Solicitud(radicado="SOL-2026-09001", solicitante_id=ana.id, servicio_id=id_sin_adjunto,
+                                asunto="Solicitud en gestión de prueba", descripcion="Descripción de prueba.",
+                                estado="en_gestion", prioridad="alta", responsable_id=luis.id)
+            db.add(gestion)
+            db.flush()
+            db.add(Ev(solicitud_id=gestion.id, autor_id=ana.id, tipo="creada", estado_nuevo="recibida"))
+            db.add(Ev(solicitud_id=gestion.id, autor_id=luis.id, tipo="nota", detalle="Nota interna de prueba",
+                      visible_solicitante=False))
+            db.commit()
+            id_gestion = gestion.id
+
+        r_maria = c.get(f"/api/solicitudes/{id_gestion}", headers=encabezado(token_maria))
+        r_luis = c.get(f"/api/solicitudes/{id_gestion}", headers=encabezado(token_luis))
+        r_coord = c.get(f"/api/solicitudes/{id_gestion}", headers=encabezado(token_coord))
+        probar("T-38", "RF-19, SUP-10", "En gestión: no la ve otro funcionario, sí el responsable y coordinación",
+               r_maria, 404, r_luis.status_code == 200 and r_coord.status_code == 200)
+
+        r = c.get("/api/solicitudes", params={"estado": "en_gestion"}, headers=encabezado(token_maria))
+        probar("T-39", "RF-19", "El listado de otro funcionario no incluye la que está en gestión", r, 200,
+               r.json()["total"] == 0)
+
+        r = c.get(f"/api/solicitudes/{id_gestion}/eventos", headers=auth_ana)
+        cuerpo = r.json() if r.status_code == 200 else []
+        probar("T-40", "RF-17, RN-05, CA-04", "El solicitante no recibe las notas internas del historial", r, 200,
+               [e["tipo"] for e in cuerpo] == ["creada"] and all("visible_solicitante" not in e for e in cuerpo))
+
+        r = c.get(f"/api/solicitudes/{id_gestion}/eventos", headers=encabezado(token_luis))
+        cuerpo = r.json() if r.status_code == 200 else []
+        probar("T-41", "RF-17, RN-05, CA-04", "El personal ve el historial completo, con las notas internas", r, 200,
+               [e["tipo"] for e in cuerpo] == ["creada", "nota"] and cuerpo[1]["visible_solicitante"] is False
+               and cuerpo[1]["autor"]["nombre"] == "Luis Gómez")
+
+        r = c.get(f"/api/solicitudes/{id_carlos}/eventos", headers=auth_ana)
+        probar("T-42", "RF-19, RNF-02", "Historial de una solicitud ajena", r, 404)
+
+        r = c.get(f"/api/adjuntos/{id_adjunto}", headers=auth_ana)
+        probar("T-43", "RF-06, RNF-05", "El dueño descarga su adjunto con su nombre original", r, 200,
+               r.content == PDF and "certificado.pdf" in r.headers.get("content-disposition", "")
+               and r.headers.get("content-type") == "application/pdf")
+
+        r = c.get(f"/api/adjuntos/{id_adjunto}", headers=encabezado(token_luis))
+        probar("T-44", "RF-06, RNF-05", "El personal que ve la solicitud también descarga el adjunto", r, 200,
+               r.content == PDF)
+
+        r = c.get(f"/api/adjuntos/{id_adjunto}", headers=encabezado(token_carlos))
+        probar("T-45", "RNF-05", "Otro solicitante no puede descargar el adjunto (404)", r, 404)
+
+        r = c.get(f"/api/adjuntos/{id_adjunto}")
+        probar("T-46", "RNF-05", "Descargar sin token", r, 401)
+
 finally:
     engine.dispose()
     if os.path.exists("pruebas.db"):
