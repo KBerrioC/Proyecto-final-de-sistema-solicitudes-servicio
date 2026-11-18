@@ -185,3 +185,33 @@ class CancelacionEntrada(BaseModel):
     """EP-15."""
 
     motivo: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)] | None = None
+
+
+class ConteoServicio(BaseModel):
+    servicio: str
+    total: int
+
+
+class ConteoResponsable(BaseModel):
+    responsable: str
+    total: int
+
+
+class PendienteAntigua(BaseModel):
+    id: int
+    radicado: str
+    asunto: str
+    estado: str
+    responsable: str | None
+    dias_pendientes: int
+
+
+class ResumenSalida(BaseModel):
+    """EP-18: resumen consolidado para coordinación."""
+
+    total: int
+    por_estado: dict[str, int]
+    por_servicio: list[ConteoServicio]
+    por_responsable: list[ConteoResponsable]
+    tiempo_promedio_atencion_dias: float | None
+    pendientes_mas_antiguas: list[PendienteAntigua]
