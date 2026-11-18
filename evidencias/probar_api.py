@@ -551,6 +551,46 @@ try:
         r = c.patch(f"/api/solicitudes/{s2}/estado", json={"estado": "en_evaluacion"})
         probar("T-83", "RF-03", "Gestionar sin token", r, 401)
 
+        # --- Resumen para coordinación (EP-18)
+        r = c.get("/api/resumen", headers=auth_coord)
+        res = r.json() if r.status_code == 200 else {}
+        with SessionLocal() as db:
+            total_bd = db.query(Solicitud).count()
+            finalizadas_bd = db.query(Solicitud).filter_by(estado="finalizada").count()
+        probar("T-84", "RF-18, CA-06", "Coordinación consulta el resumen (conteos consistentes con la base de datos)", r, 200,
+               res.get("total") == total_bd == sum(res.get("por_estado", {}).values())
+               and res["por_estado"]["finalizada"] == finalizadas_bd
+               and sum(x["total"] for x in res["por_servicio"]) == total_bd
+               and set(res["por_estado"]) == {"recibida", "en_evaluacion", "pendiente_informacion",
+                                              "en_gestion", "finalizada", "rechazada", "cancelada"})
+
+        probar("T-85", "RF-18, RN-10", "Tiempo promedio de atención y responsables en el resumen", r, 200,
+               res.get("tiempo_promedio_atencion_dias") is not None
+               and {x["responsable"] for x in res["por_responsable"]} >= {"María Ríos", "Luis Gómez"})
+
+        dias = [x["dias_pendientes"] for x in res.get("pendientes_mas_antiguas", [])]
+        probar("T-86", "RF-18, RF-19", "Las pendientes más antiguas excluyen estados finales y son 10 como máximo", r, 200,
+               len(dias) <= 10 and dias == sorted(dias, reverse=True)
+               and all(x["estado"] not in ("finalizada", "rechazada", "cancelada")
+                       for x in res["pendientes_mas_antiguas"]))
+
+        hoy = datetime.now(timezone.utc).date()
+        r = c.get("/api/resumen", params={"hasta": str(hoy - timedelta(days=1))}, headers=auth_coord)
+        r2 = c.get("/api/resumen", params={"desde": str(hoy)}, headers=auth_coord)
+        probar("T-87", "RF-18", "Filtro por fechas (ayer o antes: 0 solicitudes; desde hoy: todas)", r, 200,
+               r.json().get("total") == 0 and r2.json().get("total") == total_bd
+               and r2.json().get("tiempo_promedio_atencion_dias") is not None)
+
+        r = c.get("/api/resumen", params={"desde": "2026-12-31", "hasta": "2026-01-01"}, headers=auth_coord)
+        probar("T-88", "RF-18", "Rango de fechas invertido", r, 422)
+
+        r = c.get("/api/resumen", headers=auth_luis)
+        r2 = c.get("/api/resumen", headers=auth_ana)
+        probar("T-89", "RF-03, RF-18", "Atención y solicitante no acceden al resumen", r, 403, r2.status_code == 403)
+
+        r = c.get("/api/resumen")
+        probar("T-90", "RF-03", "Resumen sin token", r, 401)
+
 finally:
     engine.dispose()
     if os.path.exists("pruebas.db"):
